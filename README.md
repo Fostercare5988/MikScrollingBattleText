@@ -6,10 +6,10 @@
 [![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
 [![NamPower: v4.6.2+](https://img.shields.io/badge/NamPower-v4.6.2+-blueviolet.svg)](https://github.com/Emyrk/nampower)
 [![UnitXP: SP3](https://img.shields.io/badge/UnitXP-SP3-teal.svg)](https://codeberg.org/konaka/UnitXP_SP3)
-[![DXVK: 144Hz+](https://img.shields.io/badge/DXVK-144Hz+-red.svg)](https://github.com/doitsujin/dxvk)
+[![DXVK: Vulkan](https://img.shields.io/badge/DXVK-Vulkan-red.svg)](https://github.com/doitsujin/dxvk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Mik's Scrolling Battle Text (MSBT) v6.3.0** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.13.3+**, **SuperWoW v2.2+**, **NamPower 4.6.2+**, **UnitXP SP3**, and **DXVK 144Hz+**).
+**Mik's Scrolling Battle Text (MSBT) v6.3.0** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.13.3+**, **SuperWoW v2.2+**, **NamPower 4.6.2+**, **UnitXP SP3**, and **DXVK**).
 
 MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
 
@@ -27,7 +27,7 @@ MSBT is engineered around strict low-level system integration:
 | **SuperWoW** | `v2.2+` | Direct memory state access, zero-latency combat synchronization, and OS-level window alerting. |
 | **NamPower** | `v4.6.2+` | Microsecond-precision combat pipeline and frame-0 event dispatching (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`). |
 | **UnitXP** | `SP3` | High-precision uncapped unit HP inspection to calculate exact effective healing vs. overheal amounts live. |
-| **DXVK** | `Latest` | Decoupled high-refresh 144Hz+ rendering with zero garbage collection heap churn and smooth text scrolling animations. |
+| **DXVK** | `Latest` | Decoupled high-refresh frame pacing with zero garbage collection heap churn and smooth text scrolling animations. |
 
 ### Elimination of 2006 Legacy Techniques
 - **Zero Chat Log Scraping**: Combat feedback intercepts NamPower binary events directly, completely bypassing slow string matching and chat log formatting overhead.
