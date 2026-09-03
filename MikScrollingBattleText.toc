@@ -1,8 +1,8 @@
 ## Interface: 11200
 ## Title: Mik's Scrolling Battle Text
-## Notes: Ultra-high performance scrolling combat text engineered natively for ClassicAPI, SuperWoW 2.2+, NamPower, UnitXP SP3, and DXVK.
+## Notes: Ultra-high performance scrolling combat text engineered natively for ClassicAPI v1.13.3+, SuperWoW 2.2+, NamPower 4.6.2+, UnitXP SP3, and DXVK 144Hz+.
 ## Author: Mik, Fostercare5988
-## Version: 6.2.0
+## Version: 6.3.0
 ## SavedVariables: MikSBT_Save
 ## X-Category: Combat
 ## X-Website: https://github.com/Fostercare5988/MikScrollingBattleText

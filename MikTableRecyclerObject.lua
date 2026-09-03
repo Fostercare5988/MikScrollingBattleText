@@ -2,10 +2,19 @@
 -- Title: Mik's Table Recyler Object
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
+-- Built natively for ClassicAPI v1.13.3+, SuperWoW 2.2+, NamPower 4.6.2+, UnitXP SP3, DXVK
 -- Credits:
 --  Thanks to tekkub, the author of compostLib.  I adapted much of his code for
 --  this object.
 -------------------------------------------------------------------------------------
+
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.13.3+ & SuperWoW v2.2+)
+if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) then
+	if DEFAULT_CHAT_FRAME then
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI.dll (v1.13.3+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+	end
+	return
+end
 
 -- Create "namespace."
 MikTRO = {};
@@ -109,14 +118,7 @@ function MikTRO:EraseTable(t)
   return;
  end
 
- if table.wipe then
-  table.wipe(t);
- else
-  for key in pairs(t) do
-   t[key] = nil;
-  end
-  tsetn(t, 0);
- end
+ table.wipe(t);
  self.NumErased = self.NumErased + 1;
 end
 
