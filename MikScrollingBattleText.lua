@@ -379,15 +379,7 @@ function MikSBT.OnUpdate()
    end
 
    -- Clear the merged animation events array.
-   if table.wipe then
-    table.wipe(mergeData.MergedEvents);
-   else
-    local numMergedEvents = #mergeData.MergedEvents;
-    for i = 1, numMergedEvents do
-     mergeData.MergedEvents[i] = nil;
-    end
-    table_setn(mergeData.MergedEvents, 0);
-   end
+   table.wipe(mergeData.MergedEvents);
 
 
    -- Reset the last merged time.
@@ -2023,14 +2015,7 @@ function MikSBT.RepositionAnimDisplayInfo(scrollArea)
  end -- Animation Style
 
  -- Clear the temp non stickies table.
- if table.wipe then
-  table.wipe(activeNonStickies);
- else
-  for x = 1, numNonStickies do
-   activeNonStickies[x] = nil;
-  end
-  table_setn(activeNonStickies, 0);
- end
+ table.wipe(activeNonStickies);
 end
 
 
@@ -2110,14 +2095,7 @@ function MikSBT.RepositionStickyAnimDisplayInfo(scrollArea)
  end -- Animation Style
 
  -- Clear the temp stickies table.
- if table.wipe then
-  table.wipe(activeStickies);
- else
-  for x = 1, numStickies do
-   activeStickies[x] = nil;
-  end
-  table_setn(activeStickies, 0);
- end
+ table.wipe(activeStickies);
 end
 
 
