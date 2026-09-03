@@ -2196,7 +2196,7 @@ function MikSBT.DoAnimation(animDisplayInfo, scrollArea)
 
  -- Check if it's time to update.
  if (elapsedTime > ANIMATION_SPEED) then
-  -- Scroll the text with delta-time normalization for 144Hz+ DXVK smoothing.
+  -- Scroll the text with delta-time normalization for DXVK frame pacing smoothing.
   animDisplayInfo.DeltaTime = elapsedTime;
   local animationComplete = animDisplayInfo.ScrollFunction(animDisplayInfo, scrollArea);
 
