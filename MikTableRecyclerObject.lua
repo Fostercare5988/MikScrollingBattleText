@@ -2,7 +2,7 @@
 -- Title: Mik's Table Recyler Object
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
--- Built natively for ClassicAPI v1.13.3+, SuperWoW 2.2+, NamPower 4.6.2+, UnitXP SP3, DXVK
+-- Built natively for ClassicAPI v1.13.3+, SuperWoW 2.2+, NamPower 4.6.3+, UnitXP SP3, DXVK
 -- Credits:
 --  Thanks to tekkub, the author of compostLib.  I adapted much of his code for
 --  this object.
