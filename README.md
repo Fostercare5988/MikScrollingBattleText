@@ -2,14 +2,14 @@
 
 [![Interface: 1.12.1](https://img.shields.io/badge/Interface-1.12.1%20(5875)-orange.svg)](https://github.com/Fostercare5988/MikScrollingBattleText)
 [![Version: 6.3.0](https://img.shields.io/badge/Version-6.3.1-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
-[![ClassicAPI: v1.13.3+](https://img.shields.io/badge/ClassicAPI-v1.13.3+-green.svg)](https://github.com/brues-code/ClassicAPI)
+[![ClassicAPI: v1.13.4+](https://img.shields.io/badge/ClassicAPI-v1.13.4+-green.svg)](https://github.com/brues-code/ClassicAPI)
 [![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
 [![NamPower: v4.6.3+](https://img.shields.io/badge/NamPower-v4.6.3+-blueviolet.svg)](https://github.com/Emyrk/nampower)
 [![UnitXP: SP3](https://img.shields.io/badge/UnitXP-SP3-teal.svg)](https://github.com/brues-code/UnitXP_SP3)
 [![DXVK: Vulkan](https://img.shields.io/badge/DXVK-Vulkan-red.svg)](https://github.com/doitsujin/dxvk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Mik's Scrolling Battle Text (MSBT) v6.3.1** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.13.3+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
+**Mik's Scrolling Battle Text (MSBT) v6.3.1** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.13.4+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
 
 MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
 
@@ -23,7 +23,7 @@ MSBT is engineered around strict low-level system integration:
 
 | Engine Component | Minimum Version | Architectural Role & Implementation |
 | :--- | :--- | :--- |
-| **ClassicAPI** | `v1.13.3+` | C++ hardware timers (`C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional C++ `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
+| **ClassicAPI** | `v1.13.4+` | C++ hardware timers (`C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional C++ `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
 | **SuperWoW** | `v2.2+` | Direct memory state access, zero-latency combat synchronization, and OS-level window alerting. |
 | **NamPower** | `v4.6.3+` | Microsecond-precision combat pipeline and frame-0 event dispatching (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`). |
 | **UnitXP** | `SP3` | High-precision uncapped unit HP inspection to calculate exact effective healing vs. overheal amounts live. |
@@ -67,7 +67,7 @@ Use `/msbt`:
 
 ### Prerequisites
 1. **World of Warcraft 1.12.1** (Build 5875).
-2. [**ClassicAPI v1.13.3+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
+2. [**ClassicAPI v1.13.4+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
 3. [**SuperWoW v2.2+**](https://github.com/balakethelock/SuperWoW) (`SuperWoW.dll`).
 4. [**NamPower v4.6.3+**](https://github.com/Emyrk/nampower) (`nampower.dll`).
 5. [**UnitXP SP3**](https://github.com/brues-code/UnitXP_SP3) (`UnitXP_SP3.dll`).
@@ -95,10 +95,10 @@ Use `/msbt`:
 - **Verified Engine Integrity**: 100% pass across all syntax, AST, and DLL dependency checks via `octowow_linter.py`.
 
 ### v6.3.0
-- **Universal Engine Guard**: Enforced strict dependency checks across all modules (`MikTableRecyclerObject.lua`, `MikCombatEventHelper.lua`, `MikScrollingBattleText.lua`, `MSBTOptions.lua`) for ClassicAPI v1.13.3+ and SuperWoW v2.2+.
+- **Universal Engine Guard**: Enforced strict dependency checks across all modules (`MikTableRecyclerObject.lua`, `MikCombatEventHelper.lua`, `MikScrollingBattleText.lua`, `MSBTOptions.lua`) for ClassicAPI v1.13.4+ and SuperWoW v2.2+.
 - **Unconditional C++ Memory Operations**: Streamlined `MikTRO:EraseTable` to unconditionally invoke native C++ `table.wipe(t)`.
 - **Native Bitwise Integration**: Leveraged native `bit` library without fallback nil checks.
-- **Updated Documentation**: Fully aligned README with Master System Prompt Rule H5 and ClassicAPI v1.13.3+ standards.
+- **Updated Documentation**: Fully aligned README with Master System Prompt Rule H5 and ClassicAPI v1.13.4+ standards.
 
 ### v6.2.0
 - **Native Memory Operations**: Integrated native C++ `table.wipe` into `MikTRO:EraseTable` and all active sticky/non-sticky/merge array cleanups.

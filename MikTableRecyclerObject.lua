@@ -2,16 +2,16 @@
 -- Title: Mik's Table Recyler Object
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
--- Built natively for ClassicAPI v1.13.3+, SuperWoW 2.2+, NamPower 4.6.3+, UnitXP SP3, DXVK
+-- Built natively for ClassicAPI v1.13.4+, SuperWoW 2.2+, NamPower 4.6.3+, UnitXP SP3, DXVK
 -- Credits:
 --  Thanks to tekkub, the author of compostLib.  I adapted much of his code for
 --  this object.
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.13.3+ & SuperWoW v2.2+)
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.13.4+ & SuperWoW v2.2+)
 if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI.dll (v1.13.3+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI.dll (v1.13.4+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
