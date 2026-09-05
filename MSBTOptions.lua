@@ -407,6 +407,39 @@ function MikSBTOpt.InitDropdowns()
  key = "StanceDropdown";
  MikSBTOpt.SetupDropdown(TRIGGER_CONFIGURATION_FRAME_NAME .. key, MikSBTOpt.DROPDOWNS[key].Label, MikSBTOpt.DROPDOWNS[key].Tooltip, MikSBTOpt.StanceDropdownOnClick, MikSBT.AVAILABLE_STANCES, nil); 
  UIDropDownMenu_SetWidth(240, getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. key));
+
+ -- Hook mousewheel on font dropdowns and preview frames for quick font cycling.
+ local fontDropdown = getglobal(FONT_SETTINGS_FRAME_NAME .. "FontDropdown");
+ if (fontDropdown) then
+  fontDropdown:EnableMouseWheel(true);
+  fontDropdown:SetScript("OnMouseWheel", function()
+   MikSBTOpt.CycleFont(this:GetName(), (arg1 > 0 and -1 or 1));
+  end);
+ end
+
+ local fontCritDropdown = getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritDropdown");
+ if (fontCritDropdown) then
+  fontCritDropdown:EnableMouseWheel(true);
+  fontCritDropdown:SetScript("OnMouseWheel", function()
+   MikSBTOpt.CycleFont(this:GetName(), (arg1 > 0 and -1 or 1));
+  end);
+ end
+
+ local normalPreview = getglobal(FONT_SETTINGS_FRAME_NAME .. "NormalPreview");
+ if (normalPreview) then
+  normalPreview:EnableMouseWheel(true);
+  normalPreview:SetScript("OnMouseWheel", function()
+   MikSBTOpt.CycleFont(FONT_SETTINGS_FRAME_NAME .. "FontDropdown", (arg1 > 0 and -1 or 1));
+  end);
+ end
+
+ local critPreview = getglobal(FONT_SETTINGS_FRAME_NAME .. "CritPreview");
+ if (critPreview) then
+  critPreview:EnableMouseWheel(true);
+  critPreview:SetScript("OnMouseWheel", function()
+   MikSBTOpt.CycleFont(FONT_SETTINGS_FRAME_NAME .. "FontCritDropdown", (arg1 > 0 and -1 or 1));
+  end);
+ end
 end
 
 
@@ -544,6 +577,72 @@ function MikSBTOpt.FontSettingsDropdownOnClick(frameName)
  
  -- Update the font previews.
  MikSBTOpt.UpdateFontPreviews(); 
+end
+
+
+-- **********************************************************************************
+-- Cycles through the available fonts in the specified dropdown.
+-- direction: -1 for previous, 1 for next.
+-- **********************************************************************************
+function MikSBTOpt.CycleFont(dropdownName, direction)
+ local dropdown = getglobal(dropdownName);
+ if (not dropdown or not dropdown.menuOptions) then
+  return;
+ end
+
+ -- Count total options and locate the current index.
+ local numOptions = 0;
+ local currentIndex = 1;
+ local currentValue = UIDropDownMenu_GetSelectedValue(dropdown);
+ if (currentValue == nil and dropdown.associatedVarPath) then
+  currentValue = MikSBT.GetOptionFromVarPath(dropdown.associatedVarPath);
+ end
+
+ while (dropdown.menuOptions[numOptions + 1] ~= nil) do
+  numOptions = numOptions + 1;
+  local opt = dropdown.menuOptions[numOptions];
+  local optVal = opt.Value;
+  if (optVal == nil) then
+   optVal = numOptions;
+  end
+  if (optVal == currentValue) then
+   currentIndex = numOptions;
+  end
+ end
+
+ if (numOptions == 0) then
+  return;
+ end
+
+ -- Determine new index with wrapping.
+ local newIndex = currentIndex + direction;
+ if (newIndex > numOptions) then
+  newIndex = 1;
+ elseif (newIndex < 1) then
+  newIndex = numOptions;
+ end
+
+ -- Get the selected option data.
+ local selectedOption = dropdown.menuOptions[newIndex];
+ local newValue = selectedOption.Value;
+ if (newValue == nil) then
+  newValue = newIndex;
+ end
+
+ -- Close any open dropdown menus.
+ CloseDropDownMenus();
+
+ -- Update dropdown selection and label.
+ UIDropDownMenu_SetSelectedValue(dropdown, newValue);
+ UIDropDownMenu_SetText(selectedOption.Name, dropdown);
+
+ -- Update the current profile setting.
+ if (dropdown.associatedVarPath) then
+  MikSBT.SetOptionFromVarPath(dropdown.associatedVarPath, newValue);
+ end
+
+ -- Update the font previews immediately.
+ MikSBTOpt.UpdateFontPreviews();
 end
 
 
@@ -2861,6 +2960,8 @@ end
 function MikSBTOpt.ShowCritFontControls()
  -- Show all of the crit font settings controls.
  getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritDropdown"):Show();
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritPrevButton"):Show();
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritNextButton"):Show();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "FontOutlineCritDropdown"):Show();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "InheritFontSizeCritCheckbox"):Show();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "FontSizeCritSlider"):Show();
@@ -2877,13 +2978,15 @@ end
 function MikSBTOpt.HideCritFontControls()
  -- Hide all of the crit font settings controls.
  getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritDropdown"):Hide();
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritPrevButton"):Hide();
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontCritNextButton"):Hide();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "FontOutlineCritDropdown"):Hide();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "InheritFontSizeCritCheckbox"):Hide();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "FontSizeCritSlider"):Hide();
  getglobal(FONT_SETTINGS_FRAME_NAME .. "CritPreview"):Hide();
 
  -- Center the normal font controls.
- getglobal(FONT_SETTINGS_FRAME_NAME .. "FontDropdown"):SetPoint("TOPLEFT", FONT_SETTINGS_FRAME_NAME, "TOPLEFT", 85, -60);
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontDropdown"):SetPoint("TOPLEFT", FONT_SETTINGS_FRAME_NAME, "TOPLEFT", 105, -60);
 end
 
 

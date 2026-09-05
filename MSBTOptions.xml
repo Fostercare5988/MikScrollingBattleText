@@ -79,6 +79,27 @@
   </Scripts>
  </Button>
 
+ <!-- Font Navigation Button Template -->
+ <Button name="MSBTFontNavButtonTemplate" inherits="UIPanelButtonTemplate" virtual="true">
+  <Size>
+   <AbsDimension x="20" y="20" />
+  </Size>
+  <NormalText inherits="GameFontNormalSmall" />
+  <HighlightText inherits="GameFontHighlightSmall" />
+  <DisabledText inherits="GameFontDisableSmall" />
+  <Scripts>
+   <OnEnter>
+    if (this.tooltipText ~= nil) then
+     GameTooltip:SetOwner(this, "ANCHOR_RIGHT");
+     GameTooltip:SetText(this.tooltipText, nil, nil, nil, nil, 1);
+    end
+   </OnEnter>
+   <OnLeave>
+    GameTooltip:Hide();
+   </OnLeave>
+  </Scripts>
+ </Button>
+
  <!-- Editbox Template -->
  <EditBox name="MSBTEditboxTemplate" letters="1000" autoFocus="false" inherits="InputBoxTemplate" frameStrata="HIGH" virtual="true">
   <FontString inherits="ChatFontNormal" font="Fonts\ARIALN.TTF">
@@ -1379,7 +1400,7 @@
  <!-- Font Settings Frame -->
  <Frame name="MSBTFontSettingsFrame" parent="UIParent" toplevel="true" enableMouse="true" hidden="true">
   <Size>
-   <AbsDimension x="350" y="270" />
+   <AbsDimension x="390" y="270" />
   </Size>
   <Anchors>
    <Anchor point="TOPLEFT">
@@ -1436,16 +1457,96 @@
     </Anchors>
    </Frame>
 
+   <!-- Normal Font Prev Button -->
+   <Button name="$parentFontPrevButton" inherits="MSBTFontNavButtonTemplate" text="&lt;">
+    <Anchors>
+     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parentFontDropdownButton">
+      <Offset>
+       <AbsDimension x="2" y="0" />
+      </Offset>
+     </Anchor>
+    </Anchors>
+    <Scripts>
+     <OnLoad>
+      this.tooltipText = "Previous font";
+     </OnLoad>
+     <OnClick>
+      PlaySound("igMainMenuOptionCheckBoxOn");
+      MikSBTOpt.CycleFont("MSBTFontSettingsFrameFontDropdown", -1);
+     </OnClick>
+    </Scripts>
+   </Button>
+
+   <!-- Normal Font Next Button -->
+   <Button name="$parentFontNextButton" inherits="MSBTFontNavButtonTemplate" text="&gt;">
+    <Anchors>
+     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parentFontPrevButton">
+      <Offset>
+       <AbsDimension x="2" y="0" />
+      </Offset>
+     </Anchor>
+    </Anchors>
+    <Scripts>
+     <OnLoad>
+      this.tooltipText = "Next font";
+     </OnLoad>
+     <OnClick>
+      PlaySound("igMainMenuOptionCheckBoxOn");
+      MikSBTOpt.CycleFont("MSBTFontSettingsFrameFontDropdown", 1);
+     </OnClick>
+    </Scripts>
+   </Button>
+
    <!-- Crit Font -->
    <Frame name="$parentFontCritDropdown" inherits="MSBTDropdownTemplate" hidden="false">
     <Anchors>
      <Anchor point="TOPLEFT" relativePoint="TOPRIGHT" relativeTo="$parentFontDropdown">
       <Offset>
-       <AbsDimension x="20" y="0" />
+       <AbsDimension x="60" y="0" />
       </Offset>
      </Anchor>
     </Anchors>
    </Frame>
+
+   <!-- Crit Font Prev Button -->
+   <Button name="$parentFontCritPrevButton" inherits="MSBTFontNavButtonTemplate" text="&lt;">
+    <Anchors>
+     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parentFontCritDropdownButton">
+      <Offset>
+       <AbsDimension x="2" y="0" />
+      </Offset>
+     </Anchor>
+    </Anchors>
+    <Scripts>
+     <OnLoad>
+      this.tooltipText = "Previous font";
+     </OnLoad>
+     <OnClick>
+      PlaySound("igMainMenuOptionCheckBoxOn");
+      MikSBTOpt.CycleFont("MSBTFontSettingsFrameFontCritDropdown", -1);
+     </OnClick>
+    </Scripts>
+   </Button>
+
+   <!-- Crit Font Next Button -->
+   <Button name="$parentFontCritNextButton" inherits="MSBTFontNavButtonTemplate" text="&gt;">
+    <Anchors>
+     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parentFontCritPrevButton">
+      <Offset>
+       <AbsDimension x="2" y="0" />
+      </Offset>
+     </Anchor>
+    </Anchors>
+    <Scripts>
+     <OnLoad>
+      this.tooltipText = "Next font";
+     </OnLoad>
+     <OnClick>
+      PlaySound("igMainMenuOptionCheckBoxOn");
+      MikSBTOpt.CycleFont("MSBTFontSettingsFrameFontCritDropdown", 1);
+     </OnClick>
+    </Scripts>
+   </Button>
 
    <!-- Normal Font Outline -->
    <Frame name="$parentFontOutlineDropdown" inherits="MSBTDropdownTemplate" hidden="false">
@@ -1520,9 +1621,9 @@
    </Slider>
 
    <!-- Normal Font Size Preview -->
-   <Frame name="$parentNormalPreview">
+   <Frame name="$parentNormalPreview" enableMouse="true">
     <Size>
-     <AbsDimension x="1" y="36" />
+     <AbsDimension x="150" y="36" />
     </Size>
     <Anchors>
      <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parentFontSizeSlider">
@@ -1548,9 +1649,9 @@
 
 
    <!-- Crit Font Size Preview -->
-   <Frame name="$parentCritPreview">
+   <Frame name="$parentCritPreview" enableMouse="true">
     <Size>
-     <AbsDimension x="1" y="36" />
+     <AbsDimension x="150" y="36" />
     </Size>
     <Anchors>
      <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parentFontSizeCritSlider">

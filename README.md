@@ -1,7 +1,7 @@
 # Mik's Scrolling Battle Text
 
 [![Interface: 1.12.1](https://img.shields.io/badge/Interface-1.12.1%20(5875)-orange.svg)](https://github.com/Fostercare5988/MikScrollingBattleText)
-[![Version: 6.4.0](https://img.shields.io/badge/Version-6.4.0-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
+[![Version: 6.5.0](https://img.shields.io/badge/Version-6.5.0-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
 [![ClassicAPI: v1.13.4+](https://img.shields.io/badge/ClassicAPI-v1.13.4+-green.svg)](https://github.com/brues-code/ClassicAPI)
 [![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
 [![NamPower: v4.6.3+](https://img.shields.io/badge/NamPower-v4.6.3+-blueviolet.svg)](https://github.com/Emyrk/nampower)
@@ -9,7 +9,7 @@
 [![DXVK: Vulkan](https://img.shields.io/badge/DXVK-Vulkan-red.svg)](https://github.com/doitsujin/dxvk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Mik's Scrolling Battle Text (MSBT) v6.4.0** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.13.4+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
+**Mik's Scrolling Battle Text (MSBT) v6.5.0** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.13.4+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
 
 MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
 
@@ -88,6 +88,11 @@ Use `/msbt`:
 ---
 
 ## 📜 Changelog
+
+### v6.5.0
+- **Modern Clean Font Pack**: Added 8 ultra-clean, modern TrueType fonts (`Google Sans Bold`, `Google Sans Medium`, `Apple SF Pro Display`, `Apple SF Pro Text`, `Inter Bold`, `Inter SemiBold`, `Roboto`, `Roboto Mono`) to replace dated cartoonish typography with crisp, readable modern aesthetics. Default master font updated to Google Sans Bold.
+- **Quick Font Cycling Controls**: Integrated clickable previous (`<`) and next (`>`) arrow navigation buttons alongside Normal and Crit font dropdown menus in the Font Settings window for instant previewing without tedious dropdown reopening.
+- **Mousewheel Cycling Integration**: Added smooth mousewheel scroll support over font dropdowns and preview text panels for rapid cycling through available fonts.
 
 ### v6.4.0
 - **Numeric Engine Startup Guards**: Standardized startup guards across all modules (`MikTableRecyclerObject.lua`, `MikCombatEventHelper.lua`, `MikScrollingBattleText.lua`, `MSBTOptions.lua`) with strict numeric boundary validation (`MIN_CLASSIC_API = 11304`).

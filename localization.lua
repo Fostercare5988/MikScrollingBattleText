@@ -127,6 +127,14 @@ MikSBT.AVAILABLE_FONTS = {
  [30] = {Name="PT-Sans-Narrow-Regular", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\PT-Sans-Narrow-Regular.ttf"},
  [31] = {Name="Simhei", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\simhei.ttf"},
  [32] = {Name="Archangelsk", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\archangelsk.ttf"},
+ [33] = {Name="Google Sans Bold", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\GoogleSans-Bold.ttf"},
+ [34] = {Name="Google Sans Medium", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\GoogleSans-Medium.ttf"},
+ [35] = {Name="Apple SF Pro Display", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\SFProDisplay-Bold.ttf"},
+ [36] = {Name="Apple SF Pro Text", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\SFProText-Bold.ttf"},
+ [37] = {Name="Inter Bold", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\Inter-Bold.ttf"},
+ [38] = {Name="Inter SemiBold", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\Inter-SemiBold.ttf"},
+ [39] = {Name="Roboto", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\Roboto.ttf"},
+ [40] = {Name="Roboto Mono", Path="Interface\\Addons\\MikScrollingBattleText\\Fonts\\RobotoMono.ttf"},
 };
 
 -- Holds the available font outlines.
@@ -214,8 +222,8 @@ MikSBT.DEFAULT_CONFIG = {
  ResistSound					= true,
  AnimationStep					= 1.5,
  MasterFontSettings = {
-  Normal 						= {FontIndex=7, OutlineIndex=2, FontSize=18},
-  Crit 							= {FontIndex=7, OutlineIndex=2, FontSize=26},
+  Normal 						= {FontIndex=33, OutlineIndex=2, FontSize=18},
+  Crit 							= {FontIndex=33, OutlineIndex=2, FontSize=26},
  },
  BlizzardFontSettings = {
   Normal 						= {FontIndex=6},
