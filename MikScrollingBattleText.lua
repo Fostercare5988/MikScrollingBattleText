@@ -5,9 +5,11 @@
 -------------------------------------------------------------------------------------
 
 -- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.13.4+ & SuperWoW v2.2+)
-if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) then
+local MIN_CLASSIC_API = 11304
+if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) or 
+   (type(CLASSIC_API_VERSION) == "number" and CLASSIC_API_VERSION < MIN_CLASSIC_API) then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI.dll (v1.13.4+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.13.4+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
@@ -18,7 +20,7 @@ end
 
 -- Upvalue caches for frequently called functions.
 local string_find, string_gsub = string.find, string.gsub
-local table_insert, table_getn, table_remove = table.insert, table.getn, table.remove
+local table_insert, table_remove = table.insert, table.remove
 local table_setn = table.setn
 local math_ceil, math_floor, math_random = math.ceil, math.floor, math.random
 local GetTime = GetTime

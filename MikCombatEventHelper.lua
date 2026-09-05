@@ -5,9 +5,11 @@
 -------------------------------------------------------------------------------------
 
 -- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.13.4+ & SuperWoW v2.2+)
-if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) then
+local MIN_CLASSIC_API = 11304
+if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) or 
+   (type(CLASSIC_API_VERSION) == "number" and CLASSIC_API_VERSION < MIN_CLASSIC_API) then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI.dll (v1.13.4+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.13.4+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
@@ -24,7 +26,7 @@ for i = 1, 40 do RAID_UNITS[i] = "raid" .. i end
 
 local string_find, string_gsub, string_gfind = string.find, string.gsub, string.gfind
 local string_len, string_sub, string_lower = string.len, string.sub, string.lower
-local table_insert, table_getn, table_setn = table.insert, table.getn, table.setn
+local table_insert, table_setn = table.insert, table.setn
 local GetTime, UnitHealth, UnitHealthMax = GetTime, UnitHealth, UnitHealthMax
 local UnitMana, UnitManaMax, UnitName, UnitClass = UnitMana, UnitManaMax, UnitName, UnitClass
 local UnitIsPlayer, UnitIsFriend, UnitExists = UnitIsPlayer, UnitIsFriend, UnitExists

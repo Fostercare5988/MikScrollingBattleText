@@ -6,7 +6,11 @@
 -------------------------------------------------------------------------------------
 
 -- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.13.4+ & SuperWoW v2.2+)
-if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) then return end
+local MIN_CLASSIC_API = 11304
+if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) or 
+   (type(CLASSIC_API_VERSION) == "number" and CLASSIC_API_VERSION < MIN_CLASSIC_API) then
+	return
+end
 
 -------------------------------------------------------------------------------------
 -- Local Constants.
@@ -282,7 +286,7 @@ end
 -- **********************************************************************************
 function MikSBTOpt.PopulateTabs()
  -- Set the number of tabs for the options frame.
- PanelTemplates_SetNumTabs(getglobal(OPTIONS_FRAME_NAME), table.getn(MikSBTOpt.TABS));
+ PanelTemplates_SetNumTabs(getglobal(OPTIONS_FRAME_NAME), #MikSBTOpt.TABS);
 
  -- Loop through all of the tabs.
  for tabNumber, tabData in MikSBTOpt.TABS do
@@ -1773,7 +1777,7 @@ function MikSBTOpt.PopulateIncomingEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab2FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = table.getn(MikSBTOpt.INCOMING_EVENTS);
+ totalItems = #MikSBTOpt.INCOMING_EVENTS;
 
  -- Get the incoming event settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab2FrameEventsScrollFrame");
@@ -1851,7 +1855,7 @@ function MikSBTOpt.PopulateOutgoingEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab3FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = table.getn(MikSBTOpt.OUTGOING_EVENTS);
+ totalItems = #MikSBTOpt.OUTGOING_EVENTS;
 
  -- Get the outgoing event settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab3FrameEventsScrollFrame");
@@ -1929,7 +1933,7 @@ function MikSBTOpt.PopulateNotificationEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab4FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = table.getn(MikSBTOpt.NOTIFICATION_EVENTS);
+ totalItems = #MikSBTOpt.NOTIFICATION_EVENTS;
 
  -- Get the notification event settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab4FrameEventsScrollFrame");
@@ -3602,7 +3606,7 @@ function MikSBTOpt.PopulateAvailableTriggerEvents()
  local triggerFrame = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME);
 
  -- Get the total number of available trigger events.
- local totalItems = table.getn(availableTriggerEvents);
+ local totalItems = #availableTriggerEvents;
 
  -- Get the trigger settings scroll frame and its offset.
  local objFrame = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "EventsScrollFrame");
