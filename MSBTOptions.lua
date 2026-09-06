@@ -181,8 +181,10 @@ function MikSBTOpt.Init()
  -- Populate the options for the current profile.
  MikSBTOpt.PopulateProfileOptions();
 
- -- Insert the frame name into the UISpecialFrames array so it closes when the escape key is pressed.
- table.insert(UISpecialFrames, OPTIONS_FRAME_NAME);
+ 	-- Insert the frame names into the UISpecialFrames array so they close when the escape key is pressed.
+	table.insert(UISpecialFrames, OPTIONS_FRAME_NAME);
+	table.insert(UISpecialFrames, FONT_SETTINGS_FRAME_NAME);
+	table.insert(UISpecialFrames, TRIGGER_CONFIGURATION_FRAME_NAME);
 end
 
 

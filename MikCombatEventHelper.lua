@@ -27,6 +27,7 @@ for i = 1, 40 do RAID_UNITS[i] = "raid" .. i end
 local string_find, string_gsub, string_gfind = string.find, string.gsub, string.gfind
 local string_len, string_sub, string_lower = string.len, string.sub, string.lower
 local table_insert, table_setn = table.insert, table.setn
+local table_wipe = table.wipe
 local GetTime, UnitHealth, UnitHealthMax = GetTime, UnitHealth, UnitHealthMax
 local UnitMana, UnitManaMax, UnitName, UnitClass = UnitMana, UnitManaMax, UnitName, UnitClass
 local UnitIsPlayer, UnitIsFriend, UnitExists = UnitIsPlayer, UnitIsFriend, UnitExists
@@ -1122,77 +1123,86 @@ function MikCEH.GetNotificationEventData(notificationType, amount, effectName, S
  return eventData;
 end
 
+local function GetUnitXPHealth(unitID)
+	return UnitXP("health", unitID), UnitXP("maxhealth", unitID)
+end
+
 function MikCEH.GetUnitIDFromName(uName)
- if not uName then return nil, nil end
+	if not uName then return nil, nil end
 
- if hasSuperWoW then
-  local ok, exist, uid = pcall(UnitExists, uName)
-  if ok and exist then return uid, UnitName(uid) end
- end
+	-- Fast-path local player
+	if (uName == playerName) then
+		return "player", playerName
+	end
 
- if (uName == playerName) then
-  return "player", playerName
- elseif (uName == UnitName("pet")) then
-  return "pet", UnitName("pet")
- elseif (uName == UnitName("target")) then
-  return "target", UnitName("target")
- end
+	-- Fast-path target & pet
+	local targetName = UnitName("target")
+	if (targetName and uName == targetName) then
+		return "target", targetName
+	end
+	local petName = UnitName("pet")
+	if (petName and uName == petName) then
+		return "pet", petName
+	end
 
- -- Fast pre-allocated party & raid entity lookup
- for i = 1, 4 do
-  local uid = PARTY_UNITS[i]
-  if UnitExists(uid) and UnitName(uid) == uName then
-   return uid, uName
-  end
- end
- for i = 1, 40 do
-  local uid = RAID_UNITS[i]
-  if UnitExists(uid) and UnitName(uid) == uName then
-   return uid, uName
-  end
- end
+	-- Fast pre-allocated party & raid entity lookup
+	for i = 1, 4 do
+		local uid = PARTY_UNITS[i]
+		if UnitExists(uid) and UnitName(uid) == uName then
+			return uid, uName
+		end
+	end
+	for i = 1, 40 do
+		local uid = RAID_UNITS[i]
+		if UnitExists(uid) and UnitName(uid) == uName then
+			return uid, uName
+		end
+	end
 
- return nil, nil
+	-- SuperWoW GUID lookup: only query hex-formatted GUIDs to avoid unknown unit name chat spam
+	if hasSuperWoW and string_sub(uName, 1, 2) == "0x" then
+		local ok, exist, uid = pcall(UnitExists, uName)
+		if ok and exist then return (uid or uName), UnitName(uid or uName) end
+	end
+
+	return nil, nil
 end
 
 function MikCEH.PopulateOverhealData(eventData)
- local unitID = MikCEH.GetUnitIDFromName(eventData.Name);
- if (unitID) then
-  local curHealth, maxHealth
-  if hasUnitXP and UnitXP then
-   local ok, ch, mh = pcall(function() return UnitXP("health", unitID), UnitXP("maxhealth", unitID) end)
-   if ok and ch and mh and mh > 0 then
-    curHealth = ch
-    maxHealth = mh
-   end
-  end
-  if not curHealth or not maxHealth then
-   curHealth = UnitHealth(unitID)
-   maxHealth = UnitHealthMax(unitID)
-  end
+	local unitID = MikCEH.GetUnitIDFromName(eventData.Name);
+	if (unitID) then
+		local curHealth, maxHealth
+		if hasUnitXP and UnitXP then
+			local ok, ch, mh = pcall(GetUnitXPHealth, unitID)
+			if ok and ch and mh and mh > 0 then
+				curHealth = ch
+				maxHealth = mh
+			end
+		end
+		if not curHealth or not maxHealth then
+			curHealth = UnitHealth(unitID)
+			maxHealth = UnitHealthMax(unitID)
+		end
 
-  if maxHealth and curHealth and maxHealth > 0 then
-   local healthMissing = maxHealth - curHealth
-   local overhealAmount = (eventData.Amount or 0) - healthMissing
-   if overhealAmount > 0 and maxHealth ~= 100 then
-    eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_OVERHEAL
-    eventData.PartialAmount = overhealAmount
-   end
-  end
- end
+		if maxHealth and curHealth and maxHealth > 0 then
+			local healthMissing = maxHealth - curHealth
+			local overhealAmount = (eventData.Amount or 0) - healthMissing
+			if overhealAmount > 0 and maxHealth ~= 100 then
+				eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_OVERHEAL
+				eventData.PartialAmount = overhealAmount
+			end
+		end
+	end
 end
 
 function MikCEH.SendEvent(eventData)
- if (MikSBT.CombatEventsHandler ~= nil) then
-  MikSBT.CombatEventsHandler(eventData);
- end
+	if (MikSBT.CombatEventsHandler ~= nil) then
+		MikSBT.CombatEventsHandler(eventData);
+	end
 end
 
 function MikCEH.EraseTable(t)
- for key in pairs(t) do
-  t[key] = nil;
- end
- table_setn(t, 0);
+	table_wipe(t);
 end
 
 -------------------------------------------------------------------------------------

@@ -47,15 +47,12 @@ MikSBT.CurrentProfile = nil;
 -- Private constants.
 -------------------------------------------------------------------------------------
 
--- cache des icones trouvées par l'algo et des icones qu'il ne trouverait pas
--- Icon cache for dynamic lookups
-if not ICON_CACHE then
-	ICON_CACHE = {}
-end
-ICON_CACHE["flametongue attack"] = "Interface\\Icons\\Spell_Nature_GuardianWard"
-ICON_CACHE["stratholme holy water"] = "Interface\\Icons\\Inv_Potion_75"
-
-NO_ICON_CACHE = {}
+-- Icon caches for dynamic lookups (file-scoped to prevent global leakage)
+local ICON_CACHE = {
+	["flametongue attack"] = "Interface\\Icons\\Spell_Nature_GuardianWard",
+	["stratholme holy water"] = "Interface\\Icons\\Inv_Potion_75",
+}
+local NO_ICON_CACHE = {}
 
 -- Cache for spellId-based icon lookups (bypasses Babble-Spell and tooltip scanning).
 local spellIdIconCache = {}
@@ -1712,7 +1709,6 @@ function MikSBT.AddAnimation(animationEvent)
 			animDisplayInfo.Texture = getglobal(animationEvent.ScrollArea.AssociatedFrame):CreateTexture(nil, "ARTWORK")
 		end
 		animDisplayInfo.Texture:ClearAllPoints();
-		animDisplayInfo.Texture:SetTexture(nil);
 		animDisplayInfo.Texture:SetTexture(texture);
 		animDisplayInfo.Texture:SetWidth(animDisplayInfo.FontSize);
 		animDisplayInfo.Texture:SetHeight(animDisplayInfo.FontSize);

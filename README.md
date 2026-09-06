@@ -1,7 +1,7 @@
 # Mik's Scrolling Battle Text
 
 [![Interface: 1.12.1](https://img.shields.io/badge/Interface-1.12.1%20(5875)-orange.svg)](https://github.com/Fostercare5988/MikScrollingBattleText)
-[![Version: 6.5.0](https://img.shields.io/badge/Version-6.5.0-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
+[![Version: 6.5.1](https://img.shields.io/badge/Version-6.5.1-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
 [![ClassicAPI: v1.14.0+](https://img.shields.io/badge/ClassicAPI-v1.14.0+-green.svg)](https://github.com/brues-code/ClassicAPI)
 [![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
 [![NamPower: v4.6.3+](https://img.shields.io/badge/NamPower-v4.6.3+-blueviolet.svg)](https://github.com/Emyrk/nampower)
@@ -9,7 +9,7 @@
 [![DXVK: Vulkan](https://img.shields.io/badge/DXVK-Vulkan-red.svg)](https://github.com/doitsujin/dxvk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Mik's Scrolling Battle Text (MSBT) v6.5.0** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.14.0+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
+**Mik's Scrolling Battle Text (MSBT) v6.5.1** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.14.0+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
 
 MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
 
@@ -88,6 +88,14 @@ Use `/msbt`:
 ---
 
 ## 📜 Changelog
+
+### v6.5.1
+- **Hot-Path Zero-Allocation Tuning**: Eliminated anonymous closure instantiation in `PopulateOverhealData` by binding a static file-scoped pcall helper, achieving 0 heap allocation bytes during live combat heal processing.
+- **Native C++ Memory Acceleration**: Replaced the multiline Lua `pairs(t)` nil-loop in `MikCEH.EraseTable` with native C++ `table.wipe`, accelerating high-frequency event recycling.
+- **Hardened Entity Lookups**: Optimized `MikCEH.GetUnitIDFromName` to fast-path player, target, pet, and pre-allocated group tables, restricting SuperWoW entity queries to validated hex GUIDs (`0x...`) to eliminate chat log warning spam on unknown entity names.
+- **Global Scope Hardening**: Localized `ICON_CACHE` and `NO_ICON_CACHE` to module scope, preventing pollution of the global namespace.
+- **GPU Texture Optimization**: Removed redundant `SetTexture(nil)` pipeline clearing before active texture assignment.
+- **Enhanced Dialog UX**: Registered Font Settings and Trigger Configuration dialogs in `UISpecialFrames` for consistent Escape-key dismissal.
 
 ### v6.5.0
 - **Modern Clean Font Pack**: Added 8 ultra-clean, modern TrueType fonts (`Google Sans Bold`, `Google Sans Medium`, `Apple SF Pro Display`, `Apple SF Pro Text`, `Inter Bold`, `Inter SemiBold`, `Roboto`, `Roboto Mono`) to replace dated cartoonish typography with crisp, readable modern aesthetics. Default master font updated to Google Sans Bold.

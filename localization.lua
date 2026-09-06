@@ -12,8 +12,8 @@ MikSBT = {};
 -------------------------------------------------------------------------------
 
 MikSBT.MOD_NAME		= "MikScrollingBattleText"
-MikSBT.VERSION_NUMBER	= 4.43;
-MikSBT.VERSION_STRING	= "v4.43 beta";
+MikSBT.VERSION_NUMBER	= 6.51;
+MikSBT.VERSION_STRING	= (GetAddOnMetadata and GetAddOnMetadata("MikScrollingBattleText", "Version")) and ("v" .. GetAddOnMetadata("MikScrollingBattleText", "Version")) or "v6.5.1";
 MikSBT.COMMAND		= "/msbt";
 
 local L = setmetatable({}, { __index = function(t, k) return k end });
