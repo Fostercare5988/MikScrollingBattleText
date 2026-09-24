@@ -7,7 +7,6 @@
   <Scripts>
    <OnEvent>MikSBT.OnEvent();</OnEvent>
    <OnLoad>MikSBT.OnLoad();</OnLoad>
-   <OnUpdate>MikSBT.OnUpdate();</OnUpdate>
   </Scripts>
  </Frame>
  

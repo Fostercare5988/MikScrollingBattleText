@@ -1,15 +1,14 @@
 # Mik's Scrolling Battle Text
 
 [![Interface: 1.12.1](https://img.shields.io/badge/Interface-1.12.1%20(5875)-orange.svg)](https://github.com/Fostercare5988/MikScrollingBattleText)
-[![Version: 6.5.1](https://img.shields.io/badge/Version-6.5.1-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
-[![ClassicAPI: v1.14.0+](https://img.shields.io/badge/ClassicAPI-v1.14.0+-green.svg)](https://github.com/brues-code/ClassicAPI)
+[![Version: 6.5.2](https://img.shields.io/badge/Version-6.5.2-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
+[![ClassicAPI: v1.15.12+](https://img.shields.io/badge/ClassicAPI-v1.15.12+-green.svg)](https://github.com/brues-code/ClassicAPI)
 [![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
 [![NamPower: v4.6.3+](https://img.shields.io/badge/NamPower-v4.6.3+-blueviolet.svg)](https://github.com/Emyrk/nampower)
 [![UnitXP: SP3](https://img.shields.io/badge/UnitXP-SP3-teal.svg)](https://github.com/brues-code/UnitXP_SP3)
-[![DXVK: Vulkan](https://img.shields.io/badge/DXVK-Vulkan-red.svg)](https://github.com/doitsujin/dxvk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Mik's Scrolling Battle Text (MSBT) v6.5.1** is an enterprise-grade, zero-latency combat text display engine engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.14.0+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, **UnitXP SP3**, and **DXVK**).
+**Mik's Scrolling Battle Text (MSBT) v6.5.2** is a combat text display addon engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.15.12+**, **SuperWoW v2.2+**, **NamPower 4.6.3+**, and **UnitXP SP3**).
 
 MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
 
@@ -19,28 +18,27 @@ Created and actively maintained by **[Fostercare5988](https://github.com/Fosterc
 
 ## 🚀 Engine Architecture & Performance
 
-MSBT is engineered around strict low-level system integration:
+MSBT is engineered around low-level system integration:
 
 | Engine Component | Minimum Version | Architectural Role & Implementation |
 | :--- | :--- | :--- |
-| **ClassicAPI** | `v1.14.0+` | C++ hardware timers (`C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional C++ `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
-| **SuperWoW** | `v2.2+` | Direct memory state access, zero-latency combat synchronization, and OS-level window alerting. |
-| **NamPower** | `v4.6.3+` | Microsecond-precision combat pipeline and frame-0 event dispatching (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`). |
+| **ClassicAPI** | `v1.15.12+` | Hardware timers (`C_Timer.After`, `C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
+| **SuperWoW** | `v2.2+` | Direct memory state access, exact GUID targeting/identity, and OS-level window alerting. |
+| **NamPower** | `v4.6.3+` | Direct combat pipeline and event dispatching (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`). |
 | **UnitXP** | `SP3` | High-precision uncapped unit HP inspection to calculate exact effective healing vs. overheal amounts live. |
-| **DXVK** | `Latest` | Decoupled high-refresh frame pacing with zero garbage collection heap churn and smooth text scrolling animations. |
 
 ### Elimination of 2006 Legacy Techniques
-- **Zero Chat Log Scraping**: Combat feedback intercepts NamPower binary events directly, completely bypassing slow string matching and chat log formatting overhead.
-- **Zero OnUpdate Polling**: Eradicated legacy per-frame `OnUpdate` polling loops in favor of native hardware tickers (`C_Timer.NewTicker(5.0, ...)`).
+- **Zero Chat Log Scraping**: Combat feedback intercepts NamPower binary events directly, completely bypassing string matching and chat log formatting overhead.
+- **Zero OnUpdate Polling**: Eradicated legacy per-frame `OnUpdate` polling loops across both event frames and merge queues in favor of native hardware timers and tickers (`C_Timer.After`, `C_Timer.NewTicker`).
 - **Strict Mouse Passthrough (Rule C8)**: All three active combat text scroll frames (`MSBTFrameIncoming`, `MSBTFrameOutgoing`, `MSBTFrameNotification`) leave mouse input unintercepted (`enableMouse="false"`), ensuring floating combat text never blocks targeting, clicking NPCs, or mouse-look.
-- **Zero-GC Table Recycler**: Combat animations and event tables reuse pre-allocated pools via `MikTableRecyclerObject` and native C++ `table.wipe`, eliminating garbage collection stutter.
+- **Memory-Recycled Table Pools**: Combat animations and event tables reuse pre-allocated pools via `MikTableRecyclerObject` and native `table.wipe`, reducing garbage collection overhead.
 
 ---
 
 ## ⚡ Key Features
 
 ### 1. High-Performance Combat Event Feedback
-- **Direct Binary Packet Processing**: Intercepts NamPower binary events (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`) for zero-latency combat feedback.
+- **Direct Binary Packet Processing**: Intercepts NamPower binary events (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`) for immediate combat feedback.
 - **Accurate Absorb vs. Immune Classification**: Fixed 1.12.1 `VictimState` and full-shield absorption logic so complete absorbs display clean `ABSORB!` banners while genuine mechanic/shield immunities display `IMMUNE!`.
 - **Precision Overheal Tracking**: Integrated with **UnitXP SP3** uncapped HP inspection to calculate exact effective vs. overheal amounts live.
 
@@ -67,11 +65,10 @@ Use `/msbt`:
 
 ### Prerequisites
 1. **World of Warcraft 1.12.1** (Build 5875).
-2. [**ClassicAPI v1.14.0+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
+2. [**ClassicAPI v1.15.12+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
 3. [**SuperWoW v2.2+**](https://github.com/balakethelock/SuperWoW) (`SuperWoW.dll`).
 4. [**NamPower v4.6.3+**](https://github.com/Emyrk/nampower) (`nampower.dll`).
 5. [**UnitXP SP3**](https://github.com/brues-code/UnitXP_SP3) (`UnitXP_SP3.dll`).
-6. [**DXVK**](https://github.com/doitsujin/dxvk) & [**VanillaFixes**](https://github.com/hannesmann/vanillafixes).
 
 ### Step-by-Step Installation
 1. Clone or download the repository into your WoW AddOns directory:
@@ -89,6 +86,14 @@ Use `/msbt`:
 
 ## 📜 Changelog
 
+### v6.5.2
+- **Engine Baseline Bump**: Raised minimum ClassicAPI requirement across all modules to `v1.15.12+` (`MIN_CLASSIC_API = 11512`), aligning startup guards with current engine standards.
+- **Event-Driven Merge Pipeline**: Replaced per-frame `OnUpdate` polling loop on `MSBTEventFrame` with event-driven `C_Timer.After` delayed batching, eliminating idle per-frame polling.
+- **Static Timer Callbacks (Rule KP-20 / AP-22)**: Replaced inline anonymous closure in `MikCEH.Init()` ticker with a static file-scoped function `PurgeRecentlySelectedPlayers`.
+- **Ad-Hoc Debug Eradication**: Removed legacy temporary debugging functions (`dump`, `debugPrint`, `/bump`) and cleared global `depth` namespace leak per §11.
+- **UnitXP Telemetry Check**: Streamlined `hasUnitXP` capability detection to direct function type check.
+- **Manifest & Rule Reconciliation (§14b, Rule H8)**: Removed DXVK from declared Lua addon dependencies and TOC metadata per framework contract; aligned all documentation and user-facing text with technical neutrality standards (§14b).
+
 ### v6.5.1
 - **Hot-Path Zero-Allocation Tuning**: Eliminated anonymous closure instantiation in `PopulateOverhealData` by binding a static file-scoped pcall helper, achieving 0 heap allocation bytes during live combat heal processing.
 - **Native C++ Memory Acceleration**: Replaced the multiline Lua `pairs(t)` nil-loop in `MikCEH.EraseTable` with native C++ `table.wipe`, accelerating high-frequency event recycling.
@@ -98,7 +103,7 @@ Use `/msbt`:
 - **Enhanced Dialog UX**: Registered Font Settings and Trigger Configuration dialogs in `UISpecialFrames` for consistent Escape-key dismissal.
 
 ### v6.5.0
-- **Modern Clean Font Pack**: Added 8 ultra-clean, modern TrueType fonts (`Google Sans Bold`, `Google Sans Medium`, `Apple SF Pro Display`, `Apple SF Pro Text`, `Inter Bold`, `Inter SemiBold`, `Roboto`, `Roboto Mono`) to replace dated cartoonish typography with crisp, readable modern aesthetics. Default master font updated to Google Sans Bold.
+- **Modern Clean Font Pack**: Added 8 modern clean TrueType fonts (`Google Sans Bold`, `Google Sans Medium`, `Apple SF Pro Display`, `Apple SF Pro Text`, `Inter Bold`, `Inter SemiBold`, `Roboto`, `Roboto Mono`) to replace dated cartoonish typography with crisp, readable modern aesthetics. Default master font updated to Google Sans Bold.
 - **Quick Font Cycling Controls**: Integrated clickable previous (`<`) and next (`>`) arrow navigation buttons alongside Normal and Crit font dropdown menus in the Font Settings window for instant previewing without tedious dropdown reopening.
 - **Mousewheel Cycling Integration**: Added smooth mousewheel scroll support over font dropdowns and preview text panels for rapid cycling through available fonts.
 
@@ -125,7 +130,7 @@ Use `/msbt`:
 
 ### v6.1.0
 - **Eradicated OnUpdate Polling**: Replaced `MCEHEventFrame:OnUpdate` polling loop with native `C_Timer.NewTicker(5.0, ...)`.
-- **Zero-Bloat Consolidation**: Consolidated 180 lines of legacy version migrations and unified 4 repetitive trigger parsers into `CheckHealthThresholds`.
+- **Code Consolidation**: Consolidated 180 lines of legacy version migrations and unified 4 repetitive trigger parsers into `CheckHealthThresholds`.
 - **Absorb vs. Immunity Fix**: Corrected NamPower `VictimState` enum mapping and full absorption handling.
 
 ---

@@ -1,15 +1,15 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Scrolling Battle Text (ClassicAPI v1.14.0+ & SuperWoW 2.2+ Stack)
+-- Title: Mik's Scrolling Battle Text (ClassicAPI v1.15.12+ & SuperWoW 2.2+ Stack)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.14.0+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11400
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.15.12+ & SuperWoW v2.2+)
+local MIN_CLASSIC_API = 11512
 if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) or 
    (type(CLASSIC_API_VERSION) == "number" and CLASSIC_API_VERSION < MIN_CLASSIC_API) then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.14.0+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.15.12+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
@@ -247,8 +247,8 @@ local scrollAreas = {};
 -- Holds arrays of unmerged events, merged events to be displayed and the time since
 -- the last merge for incoming and outgoing events.
 local animationMergeData = {
- ["Incoming"]	= {["TimeSinceMerge"] = 0, UnmergedEvents={}, MergedEvents={}},
- ["Outgoing"]	= {["TimeSinceMerge"] = 0, UnmergedEvents={}, MergedEvents={}},
+ ["Incoming"]	= {["TimeSinceMerge"] = 0, TimerPending = false, UnmergedEvents={}, MergedEvents={}},
+ ["Outgoing"]	= {["TimeSinceMerge"] = 0, TimerPending = false, UnmergedEvents={}, MergedEvents={}},
 };
 
 -- Holds whether or not a merge is still being processed.
@@ -357,37 +357,7 @@ end
 -- Called when the core events frame is updated.
 -- **********************************************************************************
 function MikSBT.OnUpdate()
-
- -- Loop through all of the merge data tables.
- for _, mergeData in animationMergeData do
-  -- Add the elapsed time since the last merge.
-  mergeData.TimeSinceMerge = mergeData.TimeSinceMerge + arg1;
-
-  -- Once enough time has passed and all previous merges are done.
-  if ((mergeData.TimeSinceMerge >= MERGE_DELAY_TIME) and not stillMerging) then
-   -- Set the still merging flag.
-   stillMerging = true;
-
-   -- Merge like events.
-   local numEvents = #mergeData.UnmergedEvents;
-   MikSBT.MergeEvents(mergeData, numEvents);
-
-   -- Add the merged animation events to the animation system.
-   for _, animationEvent in mergeData.MergedEvents do
-    MikSBT.AddAnimation(animationEvent);
-   end
-
-   -- Clear the merged animation events array.
-   table.wipe(mergeData.MergedEvents);
-
-
-   -- Reset the last merged time.
-   mergeData.TimeSinceMerge = 0;
-
-   -- Clear the still merging flag.
-   stillMerging = false;
-  end
- end
+ -- Deprecated: Event merging is handled event-driven via C_Timer.After in DispatchAnimationEvent.
 end
 
 
@@ -1492,6 +1462,61 @@ end
 --  DamageType		- The type of damage.
 --  PartialEffectText	- Partial effect text to be appended. (partial resists, absorbs, blocks)
 --  OverhealAmount	- The amount overhealed.
+-- **********************************************************************************
+-- Asynchronous merge workers using C_Timer.After to eradicate per-frame polling.
+-- **********************************************************************************
+local ProcessIncomingMerge, ProcessOutgoingMerge;
+
+local function ProcessMerge(mergeData)
+ if (not mergeData or stillMerging) then return end
+ stillMerging = true;
+
+ local numEvents = #mergeData.UnmergedEvents;
+ if (numEvents > 0) then
+  MikSBT.MergeEvents(mergeData, numEvents);
+
+  for _, animationEvent in ipairs(mergeData.MergedEvents) do
+   MikSBT.AddAnimation(animationEvent);
+  end
+
+  table.wipe(mergeData.MergedEvents);
+ end
+
+ stillMerging = false;
+ mergeData.TimerPending = false;
+
+ if (#mergeData.UnmergedEvents > 0) then
+  mergeData.TimerPending = true;
+  if (mergeData == animationMergeData.Incoming) then
+   C_Timer.After(MERGE_DELAY_TIME, ProcessIncomingMerge);
+  else
+   C_Timer.After(MERGE_DELAY_TIME, ProcessOutgoingMerge);
+  end
+ end
+end
+
+ProcessIncomingMerge = function()
+ ProcessMerge(animationMergeData.Incoming);
+end
+
+ProcessOutgoingMerge = function()
+ ProcessMerge(animationMergeData.Outgoing);
+end
+
+
+-- **********************************************************************************
+-- Dispatches an animation event to the animation system or the unmerged events queue.
+-- **********************************************************************************
+--  ScrollArea		- The scroll area the animation event should be added to.
+--  EventSettings	- Event settings from the current profile.
+--  IsCrit			- Flag for whether or not it's a crit.
+--  IsSticky		- Flag for whether or not it's a sticky.
+--  Amount			- The amount of damage, heal, etc.
+--  EffectName		- The name of the spell, ability, buff, debuff, power type, etc.
+--  Name			- The name of the enemy/player.
+--  DamageType		- The type of damage.
+--  PartialEffectText	- Partial effect text to be appended. (partial resists, absorbs, blocks)
+--  OverhealAmount	- The amount overhealed.
 --  Text			- The formatted text to display.
 -- **********************************************************************************
 function MikSBT.DispatchAnimationEvent(animationEvent)
@@ -1502,10 +1527,18 @@ function MikSBT.DispatchAnimationEvent(animationEvent)
   -- for potential merging.
   if (animationEvent.ScrollArea == scrollAreas.Incoming) then
    table_insert(animationMergeData.Incoming.UnmergedEvents, animationEvent);
+   if (not animationMergeData.Incoming.TimerPending) then
+    animationMergeData.Incoming.TimerPending = true;
+    C_Timer.After(MERGE_DELAY_TIME, ProcessIncomingMerge);
+   end
   elseif (animationEvent.ScrollArea == scrollAreas.Outgoing) then
    table_insert(animationMergeData.Outgoing.UnmergedEvents, animationEvent);
+   if (not animationMergeData.Outgoing.TimerPending) then
+    animationMergeData.Outgoing.TimerPending = true;
+    C_Timer.After(MERGE_DELAY_TIME, ProcessOutgoingMerge);
+   end
 
-  -- Add the event the animation system.
+  -- Add the event to the animation system.
   else
    MikSBT.AddAnimation(animationEvent);
   end
@@ -1734,96 +1767,6 @@ function MikSBT.AddAnimation(animationEvent)
 
 	eventsRecycler:ReclaimTable(animationEvent);
 end
-
--- **********************************************************************************
--- This function return some debug stuff
--- for real.
--- **********************************************************************************
-
-local depth = 0
-
-local function dump(...)
-	local out = "";
-	for i = 1, arg.n, 1 do
-		if depth > 30 then
-			out = out .. "|cffffd800... Too many things here!|r"
-			return out;
-		end
-		local d = arg[i];
-		local t = type(d);
-		if (t == "table") then
-			out = out .. "{ |cff9f9f9f--[[" .. tostring(arg[i]) .. "]]|r\n";
-			local first = true;
-			if (d) then
-				for k, v in pairs(d) do
-					if (not first) then out = out .. ", \n"; end
-					first = false;
-					depth = depth + 1
-					out = out .. "  " .. dump(k);
-					out = out .. " = ";
-					out = out .. dump(v);
-				end
-			end
-			out = out .. "\n}, |cff9f9f9f--[[" .. tostring(arg[i]) .. "]]|r\n";
-		elseif (t == "nil") then
-			out = out .. "|cffff7f7fnil|r";
-		elseif (t == "number") then
-			out = out .. "|cffff7fff" .. d .. "|r";
-		elseif (t == "string") then
-			out = out .. '"|cff7fd5ff' .. d .. '|r"';
-		elseif (t == "boolean") then
-			if (d) then
-				out = out .. "|cffff9100true|r";
-			else
-				out = out .. "|cffff9100false|r";
-			end
-		elseif (t == "function") then
-			out = out .. "|cff7fd5ff" .. tostring(d) .. "|r";
-		elseif (t == "userdata") then
-			out = out .. string.format("|cffffea00<%s:%s>|r", t, getmetatable(d) or "(anon)")
-		else
-			out = out .. string.upper(t) .. "??";
-		end
-
-		if (i < arg.n) then out = out .. ", "; end
-	end
-	return out;
-end
-
-function MikSBT.debugPrint(...)
-	local debugWin = 0;
-	local name, shown;
-	for i=1, NUM_CHAT_WINDOWS do
-		name,_,_,_,_,_,shown = GetChatWindowInfo(i);
-		if (string.lower(name) == "debug") then debugWin = i; break; end
-	end
-	if (debugWin == 0) then return end
-	local out = "";
-	depth = 0
-	for i = 1, arg.n, 1 do
-		if (i > 1) then out = out .. ", "; end
-		out = arg[i].." = "
-		arg[i] = getglobal(arg[i])
-		local t = type(arg[i]);
-		if (t == "string") then
-			out = out .. '"|cff7fd5ff'..arg[i]..'|r"';
-		elseif (t == "number") then
-			out = out .. "|cffff7fff" .. arg[i] .. "|r";
-		elseif (t == "boolean") then
-			out = out .. "|cffff9100" .. arg[i] .. "|r";
-		elseif (t == nil) then
-			out = out .. "|cffff7f7f" .. arg[i] .. "|r";
-		else
-			out = out .. dump(arg[i]);
-		end
-	end
-	local start = GetTime()
-	getglobal("ChatFrame"..debugWin):AddMessage("|cffffd800<|r\n" .. out, 1.0, 1.0, 1.0);
-	getglobal("ChatFrame"..debugWin):AddMessage("|cffffd800> displayed in:|r "..string.format( "%.4f",GetTime()-start).."|cffffd800s|r", 1.0, 1.0, 1.0);
-end
-
-SLASH_MSBTDUMPCMD1 = "/bump"
-SlashCmdList["MSBTDUMPCMD"] = MikSBT.debugPrint
 
 
 -- **********************************************************************************

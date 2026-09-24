@@ -1,15 +1,15 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Combat Event Helper (ClassicAPI v1.14.0+ & SuperWoW 2.2+ Stack)
+-- Title: Mik's Combat Event Helper (ClassicAPI v1.15.12+ & SuperWoW 2.2+ Stack)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.14.0+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11400
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.15.12+ & SuperWoW v2.2+)
+local MIN_CLASSIC_API = 11512
 if not (CLASSIC_API_VERSION and SUPERWOW_VERSION) or 
    (type(CLASSIC_API_VERSION) == "number" and CLASSIC_API_VERSION < MIN_CLASSIC_API) then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.14.0+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.15.12+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
@@ -843,13 +843,24 @@ end
 -- Core Helper Initialization & Lifecycle
 -------------------------------------------------------------------------------------
 
+local function PurgeRecentlySelectedPlayers()
+ for pName, lastSeen in pairs(recentlySelectedPlayers) do
+  lastSeen = lastSeen + 5.0;
+  if (lastSeen >= 60) then
+   recentlySelectedPlayers[pName] = nil;
+  else
+   recentlySelectedPlayers[pName] = lastSeen;
+  end
+ end
+end
+
 function MikCEH.Init()
  playerName = UnitName("player");
  _, playerClass = UnitClass("player");
 
  hasNampower = (GetNampowerVersion ~= nil);
  hasSuperWoW = (SUPERWOW_VERSION ~= nil) or (SpellInfo ~= nil);
- hasUnitXP = pcall(UnitXP, "nop", "nop");
+ hasUnitXP = (type(UnitXP) == "function");
 
  MikCEH.hasNampower = hasNampower;
  MikCEH.hasSuperWoW = hasSuperWoW;
@@ -874,16 +885,7 @@ function MikCEH.Init()
  end
 
  if C_Timer and C_Timer.NewTicker then
-  C_Timer.NewTicker(5.0, function()
-   for pName, lastSeen in pairs(recentlySelectedPlayers) do
-    lastSeen = lastSeen + 5.0;
-    if (lastSeen >= 60) then
-     recentlySelectedPlayers[pName] = nil;
-    else
-     recentlySelectedPlayers[pName] = lastSeen;
-    end
-   end
-  end)
+  C_Timer.NewTicker(5.0, PurgeRecentlySelectedPlayers);
  end
 end
 
