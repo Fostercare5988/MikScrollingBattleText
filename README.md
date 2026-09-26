@@ -141,3 +141,7 @@ Use `/msbt`:
 - **Author & Maintainer**: **[Fostercare5988](https://github.com/Fostercare5988)**
 - **GitHub Repository**: [https://github.com/Fostercare5988/MikScrollingBattleText](https://github.com/Fostercare5988/MikScrollingBattleText)
 - **License**: MIT License - See [LICENSE](LICENSE) for details.
+
+### NamPower baseline verification
+
+The supported NamPower baseline is v4.6.2+. See the [source compatibility review](docs/NAMPOWER_4.6.2_REVIEW.md) for event contracts, the damage-shield payload correction and remaining in-game tests.

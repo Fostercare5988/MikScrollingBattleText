@@ -703,10 +703,10 @@ nampowerHandlers["SPELL_MISS_OTHER"] = function()
 end
 
 nampowerHandlers["DAMAGE_SHIELD_SELF"] = function()
- local targetGuid, casterGuid = arg1, arg2
- local spellId = arg3
- local damage = tonumber(arg4) or 0
- local spellSchool = arg5
+ -- NamPower 4.6.2+: shield owner, damaged attacker, damage, school; no spell ID.
+ local casterGuid, targetGuid = arg1, arg2
+ local damage = tonumber(arg3) or 0
+ local spellSchool = arg4
 
  local directionType
  if IsPlayerGUID(casterGuid) then
@@ -721,20 +721,19 @@ nampowerHandlers["DAMAGE_SHIELD_SELF"] = function()
   directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
  end
 
- local spellName = GetSpellNameFromId(spellId) or "Damage Shield"
+ local spellName = "Damage Shield"
  local damageType = SchoolToDamageType(spellSchool)
- local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid) or UnitName("target"))
+ local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid) or UnitName("target"))
 
  local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, MikCEH.HITTYPE_NORMAL, damageType, damage, spellName, name)
- eventData.SpellId = spellId
  MikCEH.SendEvent(eventData)
 end
 
 nampowerHandlers["DAMAGE_SHIELD_OTHER"] = function()
- local targetGuid, casterGuid = arg1, arg2
- local spellId = arg3
- local damage = tonumber(arg4) or 0
- local spellSchool = arg5
+ -- NamPower 4.6.2+: shield owner, damaged attacker, damage, school; no spell ID.
+ local casterGuid, targetGuid = arg1, arg2
+ local damage = tonumber(arg3) or 0
+ local spellSchool = arg4
 
  local directionType
  if IsPlayerGUID(targetGuid) then
@@ -749,12 +748,11 @@ nampowerHandlers["DAMAGE_SHIELD_OTHER"] = function()
   return
  end
 
- local spellName = GetSpellNameFromId(spellId) or "Damage Shield"
+ local spellName = "Damage Shield"
  local damageType = SchoolToDamageType(spellSchool)
- local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid) or UnitName("target"))
+ local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid) or UnitName("target"))
 
  local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, MikCEH.HITTYPE_NORMAL, damageType, damage, spellName, name)
- eventData.SpellId = spellId
  MikCEH.SendEvent(eventData)
 end
 
