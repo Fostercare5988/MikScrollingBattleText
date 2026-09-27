@@ -1,16 +1,16 @@
 # Mik's Scrolling Battle Text
 
-Recommended ClassicAPI version: **v1.15.15+**. The existing enforced addon minimum remains unchanged because this update introduces no required new API calls. Native equipment-set action buttons require v1.15.15; after updating the DLL, fully restart the game client.
+Required ClassicAPI version: **v1.15.15+**. This is the maintainer's published support baseline for this addon suite; it is not a claim that every API used here was introduced in v1.15.15. After replacing ClassicAPI.dll, fully restart WoW; `/reload` cannot reload a DLL.
 
 [![Interface: 1.12.1](https://img.shields.io/badge/Interface-1.12.1%20(5875)-orange.svg)](https://github.com/Fostercare5988/MikScrollingBattleText)
 [![Version: 6.5.2](https://img.shields.io/badge/Version-6.5.2-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
-[![ClassicAPI: v1.15.14+](https://img.shields.io/badge/ClassicAPI-v1.15.14+-green.svg)](https://github.com/brues-code/ClassicAPI)
+[![ClassicAPI: v1.15.15+](https://img.shields.io/badge/ClassicAPI-v1.15.15+-green.svg)](https://github.com/brues-code/ClassicAPI)
 [![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
 [![NamPower: v4.6.2+](https://img.shields.io/badge/NamPower-v4.6.2+-blueviolet.svg)](https://github.com/Emyrk/nampower)
 [![UnitXP: SP3](https://img.shields.io/badge/UnitXP-SP3-teal.svg)](https://github.com/brues-code/UnitXP_SP3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Mik's Scrolling Battle Text (MSBT) v6.5.2** is a combat text display addon engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.15.14+**, **SuperWoW v2.2+**, **NamPower 4.6.2+**, and **UnitXP SP3**).
+**Mik's Scrolling Battle Text (MSBT) v6.5.2** is a combat text display addon engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.15.15+**, **SuperWoW v2.2+**, **NamPower 4.6.2+**, and **UnitXP SP3**).
 
 MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
 
@@ -24,7 +24,7 @@ MSBT is engineered around low-level system integration:
 
 | Engine Component | Minimum Version | Architectural Role & Implementation |
 | :--- | :--- | :--- |
-| **ClassicAPI** | `v1.15.14+` | Hardware timers (`C_Timer.After`, `C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
+| **ClassicAPI** | `v1.15.15+` | Hardware timers (`C_Timer.After`, `C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
 | **SuperWoW** | `v2.2+` | Direct memory state access, exact GUID targeting/identity, and OS-level window alerting. |
 | **NamPower** | `v4.6.2+` | Direct combat pipeline and event dispatching (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`). |
 | **UnitXP** | `SP3` | High-precision uncapped unit HP inspection to calculate exact effective healing vs. overheal amounts live. |
@@ -67,7 +67,7 @@ Use `/msbt`:
 
 ### Prerequisites
 1. **World of Warcraft 1.12.1** (Build 5875).
-2. [**ClassicAPI v1.15.14+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
+2. [**ClassicAPI v1.15.15+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
 3. [**SuperWoW v2.2+**](https://github.com/balakethelock/SuperWoW) (`SuperWoW.dll`).
 4. [**NamPower v4.6.2+**](https://github.com/Emyrk/nampower) (`nampower.dll`).
 5. [**UnitXP SP3**](https://github.com/brues-code/UnitXP_SP3) (`UnitXP_SP3.dll`).

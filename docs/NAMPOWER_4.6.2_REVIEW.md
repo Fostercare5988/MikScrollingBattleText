@@ -72,3 +72,8 @@ No in-game validation or installed DLL replacement was performed.
 Retrospective: comparing actual emitter payloads exposed a bug that version
 replacement and static linting could not find. Keep this addon-specific evidence
 here; no new framework pattern is needed.
+
+
+Support policy update (2026-09-27): the published ClassicAPI minimum is now
+v1.15.15+ by explicit maintainer decision. Older capability evidence above is
+retained as audit history; it does not describe the current startup guard.
