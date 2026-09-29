@@ -46,7 +46,7 @@ A customizable scrolling combat text replacement for World of Warcraft 1.12.1.
 
 ---
 
-For detailed configuration, font settings, and trigger creation, see the [User Guide](docs/USER_GUIDE.md). Technical notes and NamPower integration are documented in [docs/NAMPOWER_4.6.2_REVIEW.md](docs/NAMPOWER_4.6.2_REVIEW.md).
+For detailed configuration, font settings, and trigger creation, see the [User Guide](docs/USER_GUIDE.md).
 
 ## License & Credits
 
