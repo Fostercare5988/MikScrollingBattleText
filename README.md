@@ -1,149 +1,53 @@
 # Mik's Scrolling Battle Text
 
-Required ClassicAPI version: **v1.15.15+**. This is the maintainer's published support baseline for this addon suite; it is not a claim that every API used here was introduced in v1.15.15. After replacing ClassicAPI.dll, fully restart WoW; `/reload` cannot reload a DLL.
+A customizable scrolling combat text replacement for World of Warcraft 1.12.1.
 
-[![Interface: 1.12.1](https://img.shields.io/badge/Interface-1.12.1%20(5875)-orange.svg)](https://github.com/Fostercare5988/MikScrollingBattleText)
-[![Version: 6.5.2](https://img.shields.io/badge/Version-6.5.2-blue.svg)](https://github.com/Fostercare5988/MikScrollingBattleText/releases)
-[![ClassicAPI: v1.15.15+](https://img.shields.io/badge/ClassicAPI-v1.15.15+-green.svg)](https://github.com/brues-code/ClassicAPI)
-[![SuperWoW: v2.2+](https://img.shields.io/badge/SuperWoW-v2.2+-brightgreen.svg)](https://github.com/balakethelock/SuperWoW)
-[![NamPower: v4.6.2+](https://img.shields.io/badge/NamPower-v4.6.2+-blueviolet.svg)](https://github.com/Emyrk/nampower)
-[![UnitXP: SP3](https://img.shields.io/badge/UnitXP-SP3-teal.svg)](https://github.com/brues-code/UnitXP_SP3)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## Features
 
-**Mik's Scrolling Battle Text (MSBT) v6.5.2** is a combat text display addon engineered natively for **World of Warcraft 1.12.1 (Build 5875)** running on the **Enhanced Client Extension Stack** (**ClassicAPI v1.15.15+**, **SuperWoW v2.2+**, **NamPower 4.6.2+**, and **UnitXP SP3**).
+- **Customizable Scroll Areas**: Independently configure and position text areas for incoming attacks, outgoing damage, heals, pet actions, and notifications.
+- **Rich Combat Feedback**: Real-time display of damage hits, critical strikes, periodic ticks, heals, resists, absorbs, and interrupts.
+- **Precision Overheal Tracking**: Displays exact effective healing versus overheal amounts when paired with UnitXP SP3.
+- **Interactive Layout Mover**: Visual on-screen handles make moving and resizing scroll areas intuitive.
+- **Modern Typography**: Includes a clean collection of modern TrueType fonts with interactive preview cycling.
+- **Custom Triggers & Alerts**: Sound and visual warnings for low health/mana, cooldown readiness, and proc notifications.
 
-MSBT replaces the default scrolling combat text with fully customizable scroll areas, dynamic combat event notifications, high-precision overheal tracking, and native binary packet parsing via NamPower.
+## Requirements
 
-Created and actively maintained by **[Fostercare5988](https://github.com/Fostercare5988)**.
+- **World of Warcraft 1.12.1** (Build 5875)
+- [ClassicAPI v1.15.15+](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`)
+- [SuperWoW v2.2+](https://github.com/balakethelock/SuperWoW) (`SuperWoWhook.dll` / `SuperWoWlauncher.exe`)
+- [NamPower v4.6.2+](https://github.com/Emyrk/nampower) (`nampower.dll`)
+- *Optional:* [UnitXP SP3](https://github.com/brues-code/UnitXP_SP3) (`UnitXP_SP3.dll`) for precision uncapped health inspection and overheal calculations.
 
----
+> Note: Completely restart the game client after installing or updating DLLs. `/reload` cannot reload DLLs.
 
-## 🚀 Engine Architecture & Performance
+## Installation
 
-MSBT is engineered around low-level system integration:
-
-| Engine Component | Minimum Version | Architectural Role & Implementation |
-| :--- | :--- | :--- |
-| **ClassicAPI** | `v1.15.15+` | Hardware timers (`C_Timer.After`, `C_Timer.NewTicker`), native bitwise operations (`bit.band`), unconditional `table.wipe` memory recycling, and source-rewritten Lua 5.1 syntax. |
-| **SuperWoW** | `v2.2+` | Direct memory state access, exact GUID targeting/identity, and OS-level window alerting. |
-| **NamPower** | `v4.6.2+` | Direct combat pipeline and event dispatching (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`). |
-| **UnitXP** | `SP3` | High-precision uncapped unit HP inspection to calculate exact effective healing vs. overheal amounts live. |
-
-### Elimination of 2006 Legacy Techniques
-- **Zero Chat Log Scraping**: Combat feedback intercepts NamPower binary events directly, completely bypassing string matching and chat log formatting overhead.
-- **Zero OnUpdate Polling**: Eradicated legacy per-frame `OnUpdate` polling loops across both event frames and merge queues in favor of native hardware timers and tickers (`C_Timer.After`, `C_Timer.NewTicker`).
-- **Strict Mouse Passthrough (Rule C8)**: All three active combat text scroll frames (`MSBTFrameIncoming`, `MSBTFrameOutgoing`, `MSBTFrameNotification`) leave mouse input unintercepted (`enableMouse="false"`), ensuring floating combat text never blocks targeting, clicking NPCs, or mouse-look.
-- **Memory-Recycled Table Pools**: Combat animations and event tables reuse pre-allocated pools via `MikTableRecyclerObject` and native `table.wipe`, reducing garbage collection overhead.
-
----
-
-## ⚡ Key Features
-
-### 1. High-Performance Combat Event Feedback
-- **Direct Binary Packet Processing**: Intercepts NamPower binary events (`SPELL_DAMAGE_EVENT_*`, `AUTO_ATTACK_*`, `SPELL_MISS_*`, `SPELL_HEAL_*`, `ENVIRONMENTAL_DMG_SELF`) for immediate combat feedback.
-- **Accurate Absorb vs. Immune Classification**: Fixed 1.12.1 `VictimState` and full-shield absorption logic so complete absorbs display clean `ABSORB!` banners while genuine mechanic/shield immunities display `IMMUNE!`.
-- **Precision Overheal Tracking**: Integrated with **UnitXP SP3** uncapped HP inspection to calculate exact effective vs. overheal amounts live.
-
-### 2. Fully Customizable Scroll Areas
-- **Multiple Scroll Areas**: Independent customizable areas for incoming damage/heals, outgoing player damage/heals, pet actions, and notifications.
-- **Visual Mover Mode**: Intuitive drag-and-drop handles for moving and sizing scroll areas dynamically on screen.
-- **Font & Style Customization**: Per-event font selection, size, outline, animation speed, and color customization.
-
----
-
-## ⌨️ Slash Commands & Configuration Matrix
-
-Use `/msbt`:
-
-| Command / Action | Description |
-| :--- | :--- |
-| `/msbt` | Opens the graphical options interface |
-| `/msbt reset` | Resets current profile settings to default |
-| `/msbt version` | Displays active MSBT version in chat |
-
----
-
-## 📦 Installation & Engine Prerequisites
-
-### Prerequisites
-1. **World of Warcraft 1.12.1** (Build 5875).
-2. [**ClassicAPI v1.15.15+**](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`).
-3. [**SuperWoW v2.2+**](https://github.com/balakethelock/SuperWoW) (`SuperWoW.dll`).
-4. [**NamPower v4.6.2+**](https://github.com/Emyrk/nampower) (`nampower.dll`).
-5. [**UnitXP SP3**](https://github.com/brues-code/UnitXP_SP3) (`UnitXP_SP3.dll`).
-
-### Step-by-Step Installation
-1. Clone or download the repository into your WoW AddOns directory:
+1. Copy or clone this repository into your WoW add-on directory:
    ```text
    World of Warcraft/Interface/AddOns/MikScrollingBattleText/
    ```
-2. Verify that `MikScrollingBattleText.toc` is located directly at:
-   ```text
-   World of Warcraft/Interface/AddOns/MikScrollingBattleText/MikScrollingBattleText.toc
-   ```
-3. Launch the game using your DLL loader or launcher with ClassicAPI and SuperWoW enabled.
-4. Ensure **Mik's Scrolling Battle Text** is checked in the character selection AddOn screen.
+2. Verify that `MikScrollingBattleText.toc` is located directly at `Interface/AddOns/MikScrollingBattleText/MikScrollingBattleText.toc`.
+3. Launch WoW using the SuperWoW launcher with NamPower and ClassicAPI enabled.
+4. Ensure MikScrollingBattleText is checked on the character selection AddOn screen.
+
+## Useful Commands
+
+| Command | Description |
+| :--- | :--- |
+| `/msbt` | Open graphical configuration interface |
+| `/msbt reset` | Reset current profile to defaults |
+| `/msbt version` | Display active version in chat |
+
+## Limitations & Notes
+
+- **Mouse Passthrough**: Floating combat text frames leave mouse interaction uncaptured so text never blocks targeting, clicking NPCs, or mouse camera control.
+- **Overheal Precision**: Precise overheal calculation requires UnitXP SP3; standard client values are used if UnitXP is absent.
 
 ---
 
-## 📜 Changelog
+For detailed configuration, font settings, and trigger creation, see the [User Guide](docs/USER_GUIDE.md). Technical notes and NamPower integration are documented in [docs/NAMPOWER_4.6.2_REVIEW.md](docs/NAMPOWER_4.6.2_REVIEW.md).
 
-### v6.5.2
-- **Engine Baseline Bump**: Raised minimum ClassicAPI requirement across all modules to `v1.15.12+` (`MIN_CLASSIC_API = 11512`), aligning startup guards with current engine standards.
-- **Event-Driven Merge Pipeline**: Replaced per-frame `OnUpdate` polling loop on `MSBTEventFrame` with event-driven `C_Timer.After` delayed batching, eliminating idle per-frame polling.
-- **Static Timer Callbacks (Rule KP-20 / AP-22)**: Replaced inline anonymous closure in `MikCEH.Init()` ticker with a static file-scoped function `PurgeRecentlySelectedPlayers`.
-- **Ad-Hoc Debug Eradication**: Removed legacy temporary debugging functions (`dump`, `debugPrint`, `/bump`) and cleared global `depth` namespace leak per §11.
-- **UnitXP Telemetry Check**: Streamlined `hasUnitXP` capability detection to direct function type check.
-- **Manifest & Rule Reconciliation (§14b, Rule H8)**: Removed DXVK from declared Lua addon dependencies and TOC metadata per framework contract; aligned all documentation and user-facing text with technical neutrality standards (§14b).
+## License & Credits
 
-### v6.5.1
-- **Hot-Path Zero-Allocation Tuning**: Eliminated anonymous closure instantiation in `PopulateOverhealData` by binding a static file-scoped pcall helper, achieving 0 heap allocation bytes during live combat heal processing.
-- **Native C++ Memory Acceleration**: Replaced the multiline Lua `pairs(t)` nil-loop in `MikCEH.EraseTable` with native C++ `table.wipe`, accelerating high-frequency event recycling.
-- **Hardened Entity Lookups**: Optimized `MikCEH.GetUnitIDFromName` to fast-path player, target, pet, and pre-allocated group tables, restricting SuperWoW entity queries to validated hex GUIDs (`0x...`) to eliminate chat log warning spam on unknown entity names.
-- **Global Scope Hardening**: Localized `ICON_CACHE` and `NO_ICON_CACHE` to module scope, preventing pollution of the global namespace.
-- **GPU Texture Optimization**: Removed redundant `SetTexture(nil)` pipeline clearing before active texture assignment.
-- **Enhanced Dialog UX**: Registered Font Settings and Trigger Configuration dialogs in `UISpecialFrames` for consistent Escape-key dismissal.
-
-### v6.5.0
-- **Modern Clean Font Pack**: Added 8 modern clean TrueType fonts (`Google Sans Bold`, `Google Sans Medium`, `Apple SF Pro Display`, `Apple SF Pro Text`, `Inter Bold`, `Inter SemiBold`, `Roboto`, `Roboto Mono`) to replace dated cartoonish typography with crisp, readable modern aesthetics. Default master font updated to Google Sans Bold.
-- **Quick Font Cycling Controls**: Integrated clickable previous (`<`) and next (`>`) arrow navigation buttons alongside Normal and Crit font dropdown menus in the Font Settings window for instant previewing without tedious dropdown reopening.
-- **Mousewheel Cycling Integration**: Added smooth mousewheel scroll support over font dropdowns and preview text panels for rapid cycling through available fonts.
-
-### v6.4.0
-- **Numeric Engine Startup Guards**: Standardized startup guards across all modules (`MikTableRecyclerObject.lua`, `MikCombatEventHelper.lua`, `MikScrollingBattleText.lua`, `MSBTOptions.lua`) with strict numeric boundary validation (`MIN_CLASSIC_API = 11400`).
-- **Modern Table Operations**: Replaced legacy `table.getn` lookups across options tabs and event configuration with native `#` length operator.
-- **Pre-commit Linter Integration**: Configured strict pre-commit static analysis hook enforcing zero warnings and zero errors.
-
-### v6.3.1
-- **Unconditional C++ Memory Operations**: Eradicated remaining 2006 fallback nil-loops in `RepositionAnimDisplayInfo`, `RepositionStickyAnimDisplayInfo`, and `OnUpdate` merge routines in favor of direct, unconditional C++ `table.wipe`.
-- **Metadata & Style Cleanup**: Pruned legacy marketing buzzwords (high-refresh rate marketing notations) from `.toc` notes in strict adherence to Enhanced Engine linter standards.
-- **Verified Engine Integrity**: 100% pass across all syntax, AST, and DLL dependency checks via enhanced engine linter suite.
-
-### v6.3.0
-- **Universal Engine Guard**: Enforced strict dependency checks across all modules (`MikTableRecyclerObject.lua`, `MikCombatEventHelper.lua`, `MikScrollingBattleText.lua`, `MSBTOptions.lua`) for ClassicAPI v1.14.0+ and SuperWoW v2.2+.
-- **Unconditional C++ Memory Operations**: Streamlined `MikTRO:EraseTable` to unconditionally invoke native C++ `table.wipe(t)`.
-- **Native Bitwise Integration**: Leveraged native `bit` library without fallback nil checks.
-- **Updated Documentation**: Fully aligned README with ClassicAPI v1.14.0+ and SuperWoW v2.2+ standards.
-
-### v6.2.0
-- **Native Memory Operations**: Integrated native C++ `table.wipe` into `MikTRO:EraseTable` and all active sticky/non-sticky/merge array cleanups.
-- **Universal Engine Stack Standardization**: Modernized startup dependency check to inspect `CLASSIC_API_VERSION` and `SUPERWOW_VERSION` globals.
-- **Modern Lua 5.1 AST Syntax**: Modernized table length checks to `#` syntax.
-
-### v6.1.0
-- **Eradicated OnUpdate Polling**: Replaced `MCEHEventFrame:OnUpdate` polling loop with native `C_Timer.NewTicker(5.0, ...)`.
-- **Code Consolidation**: Consolidated 180 lines of legacy version migrations and unified 4 repetitive trigger parsers into `CheckHealthThresholds`.
-- **Absorb vs. Immunity Fix**: Corrected NamPower `VictimState` enum mapping and full absorption handling.
-
----
-
-## 📄 License & Community
-
-- **Original Author**: **Mik**
-- **Author & Maintainer**: **[Fostercare5988](https://github.com/Fostercare5988)**
-- **GitHub Repository**: [https://github.com/Fostercare5988/MikScrollingBattleText](https://github.com/Fostercare5988/MikScrollingBattleText)
-- **License**: MIT License - See [LICENSE](LICENSE) for details.
-
-### NamPower baseline verification
-
-The supported NamPower baseline is v4.6.2+. See the [source compatibility review](docs/NAMPOWER_4.6.2_REVIEW.md) for event contracts, the damage-shield payload correction and remaining in-game tests.
+Original author: Mik. Maintained by [Fostercare5988](https://github.com/Fostercare5988). Licensed under the MIT License.
