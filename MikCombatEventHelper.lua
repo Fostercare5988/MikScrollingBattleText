@@ -602,10 +602,13 @@ nampowerHandlers["SPELL_HEAL_ON_SELF"] = function()
   healType = MikCEH.HEALTYPE_CRIT
  end
 
- local eventData = MikCEH.GetHealEventData(MikCEH.DIRECTIONTYPE_PLAYER_INCOMING, healType, healAmount, spellName, casterName)
+ local directionType = IsPetGUID(targetGuid) and MikCEH.DIRECTIONTYPE_PET_INCOMING or MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
+ local targetName = (directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and (UnitName("pet") or "Pet") or playerName
+
+ local eventData = MikCEH.GetHealEventData(directionType, healType, healAmount, spellName, casterName)
  eventData.SpellId = spellId
 
- eventData.Name = playerName
+ eventData.Name = targetName
  MikCEH.PopulateOverhealData(eventData)
  eventData.Name = casterName
  MikCEH.SendEvent(eventData)
@@ -619,7 +622,7 @@ nampowerHandlers["SPELL_HEAL_BY_SELF"] = function()
  local isHot = tonumber(arg6) or 0
 
  if not IsPlayerGUID(casterGuid) and not IsPetGUID(casterGuid) then return end
- if IsPlayerGUID(targetGuid) then return end -- handled by SPELL_HEAL_ON_SELF
+ if IsPlayerGUID(targetGuid) or IsPetGUID(targetGuid) then return end -- handled by SPELL_HEAL_ON_SELF
 
  local spellName = GetSpellNameFromId(spellId)
  local targetName = GetNameFromGUID(targetGuid) or UnitName("target")
@@ -1160,7 +1163,7 @@ function MikCEH.GetUnitIDFromName(uName)
 	end
 
 	-- SuperWoW GUID lookup: only query hex-formatted GUIDs to avoid unknown unit name chat spam
-	if hasSuperWoW and string_sub(uName, 1, 2) == "0x" then
+	if hasSuperWoW and string_lower(string_sub(uName, 1, 2)) == "0x" then
 		local ok, exist, uid = pcall(UnitExists, uName)
 		if ok and exist then return (uid or uName), UnitName(uid or uName) end
 	end

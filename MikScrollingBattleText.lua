@@ -328,12 +328,6 @@ end
 function MikSBT.OnEvent()
  -- When an addon is loaded.
  if (event == "ADDON_LOADED") then
- 
-  -- Set Game Damage font
- if MikSBT_Save and MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile].BlizzardFontSettings then
-	DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile].BlizzardFontSettings.Normal.FontIndex].Path or "Fonts\\FRIZQT__.TTF"
- end
- 
   -- Make sure it's this addon.
   if (arg1 == MikSBT.MOD_NAME) then
 
@@ -343,7 +337,6 @@ function MikSBT.OnEvent()
    -- Initialize the mod.
    MikSBT.Init();
   end
-
  end
  
  if (event == "PLAYER_ENTERING_WORLD") then
@@ -409,10 +402,12 @@ function MikSBT.Init()
   MikSBT.CommandHandler(params);
  end
 
- -- Check if there are no saved variables.
- if (not MikSBT_Save or not MikSBT_Save.Profiles) then
+ -- Check if there are no saved variables or profiles.
+ if (not MikSBT_Save or type(MikSBT_Save) ~= "table") then
   MikSBT_Save = {};
+ end
 
+ if (not MikSBT_Save.Profiles or type(MikSBT_Save.Profiles) ~= "table") then
   MikSBT_Save.UserDisabled = false;
   MikSBT_Save.CurrentProfile = MikSBT.DEFAULT_PROFILE_NAME;
   MikSBT_Save.Profiles = {};
@@ -422,11 +417,28 @@ function MikSBT.Init()
   MikSBT.ResetProfile(MikSBT_Save.CurrentProfile);
  end
 
+ -- Ensure current profile exists in profiles table
+ if not MikSBT_Save.CurrentProfile or not MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile] then
+  MikSBT_Save.CurrentProfile = MikSBT.DEFAULT_PROFILE_NAME;
+  if not MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile] then
+   MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile] = {};
+   MikSBT.ResetProfile(MikSBT_Save.CurrentProfile);
+  end
+ end
+
  -- Updates profiles created by older versions.
  MikSBT.UpdateProfiles();
 
  -- Set the current profile.
  MikSBT.CurrentProfile = MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile];
+
+ -- Set Game Damage font if configured
+ if MikSBT.CurrentProfile and MikSBT.CurrentProfile.BlizzardFontSettings and MikSBT.CurrentProfile.BlizzardFontSettings.Normal then
+  local fontIndex = MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex
+  if MikSBT.AVAILABLE_FONTS and MikSBT.AVAILABLE_FONTS[fontIndex] then
+   DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[fontIndex].Path or "Fonts\\FRIZQT__.TTF"
+  end
+ end
 
  -- Sets up all of the animation scroll areas.
  MikSBT.SetupAnimationScrollAreas();
@@ -723,7 +735,15 @@ end
 -- **********************************************************************************
 -- Merges like animation events.
 -- **********************************************************************************
-function MikSBT.MergeEvents(mergeData, numEvents)
+function MikSBT.MergeEvents(mergeData, unmergedEvents, numEvents)
+  if type(unmergedEvents) == "number" then
+    numEvents = unmergedEvents
+    unmergedEvents = mergeData.UnmergedEvents
+  end
+  unmergedEvents = unmergedEvents or (mergeData and mergeData.UnmergedEvents)
+  if not unmergedEvents then return end
+  numEvents = numEvents or #unmergedEvents
+
   -- Hold whether or not the event was merged.
   local eventMerged = false;
  
@@ -732,17 +752,17 @@ function MikSBT.MergeEvents(mergeData, numEvents)
   for x = 1, numEvents do
  
    -- Loop through all of the events in the merged events array.
-   for _, animationEvent in mergeData.MergedEvents do
+   for _, animationEvent in ipairs(mergeData.MergedEvents) do
      local unmergedEventMatched = false;
  
      -- Check if the event types match and the effect names are the same.
-    if ((mergeData.UnmergedEvents[x].EventType == animationEvent.EventType) and
-        (mergeData.UnmergedEvents[x].EffectName == animationEvent.EffectName)) then
+    if ((unmergedEvents[x].EventType == animationEvent.EventType) and
+        (unmergedEvents[x].EffectName == animationEvent.EffectName)) then
  
      -- Check if there is no effect name
-     if (mergeData.UnmergedEvents[x].EffectName == nil) then
+     if (unmergedEvents[x].EffectName == nil) then
       -- Check if the affected unit name is the same.
-      if ((mergeData.UnmergedEvents[x].Name == animationEvent.Name) and mergeData.UnmergedEvents[x].Name ~= nil) then
+      if ((unmergedEvents[x].Name == animationEvent.Name) and unmergedEvents[x].Name ~= nil) then
        -- Do Merge.
        eventMerged = true;
        unmergedEventMatched = true;
@@ -765,20 +785,20 @@ function MikSBT.MergeEvents(mergeData, numEvents)
     -- Check if the event should be merged.
     if (unmergedEventMatched) then
      -- Set the event merged flag for the event being merged.
-     mergeData.UnmergedEvents[x].EventMerged = true;
+     unmergedEvents[x].EventMerged = true;
  
      -- If the events have an amount then total them.
-     if (animationEvent.Amount ~= nil and mergeData.UnmergedEvents[x].Amount ~= nil) then
-    animationEvent.Amount = tonumber(animationEvent.Amount, 10)
-     if animationEvent.Amount and type(animationEvent.Amount) == "number" and mergeData.UnmergedEvents[x].Amount then
-       animationEvent.Amount = animationEvent.Amount + mergeData.UnmergedEvents[x].Amount;
-     end
-      -- animationEvent.Amount = animationEvent.Amount + mergeData.UnmergedEvents[x].Amount;
+     if (animationEvent.Amount ~= nil and unmergedEvents[x].Amount ~= nil) then
+      local aAmt = tonumber(animationEvent.Amount)
+      local uAmt = tonumber(unmergedEvents[x].Amount)
+      if aAmt and uAmt then
+        animationEvent.Amount = aAmt + uAmt;
+      end
      end
  
      -- Check if there is an overheal amount and total it.
-     if (mergeData.UnmergedEvents[x].OverhealAmount ~= nil) then
-      animationEvent.OverhealAmount = (animationEvent.OverhealAmount or 0) + mergeData.UnmergedEvents[x].OverhealAmount;
+     if (unmergedEvents[x].OverhealAmount ~= nil) then
+      animationEvent.OverhealAmount = (animationEvent.OverhealAmount or 0) + unmergedEvents[x].OverhealAmount;
      end
  
      -- Clear any partial effect text.
@@ -789,7 +809,7 @@ function MikSBT.MergeEvents(mergeData, numEvents)
      animationEvent.NumMerged = animationEvent.NumMerged + 1;
  
      -- Check if the event being merged is a crit and increment the number of crits.
-     if (mergeData.UnmergedEvents[x].IsCrit) then
+     if (unmergedEvents[x].IsCrit) then
       animationEvent.NumCrits = animationEvent.NumCrits + 1;
      end
  
@@ -801,7 +821,7 @@ function MikSBT.MergeEvents(mergeData, numEvents)
  
    -- If the event wasn't merged add it to the end of the merged events array.
    if (not eventMerged) then
-    local animationEvent = mergeData.UnmergedEvents[x];
+    local animationEvent = unmergedEvents[x];
     animationEvent.NumMerged = 0;
  
     -- Check if the event is a crit and set the number of crits appropriately.
@@ -821,7 +841,7 @@ function MikSBT.MergeEvents(mergeData, numEvents)
 
 
  -- Loop through each event in the merged events array.
- for _, animationEvent in mergeData.MergedEvents do
+ for _, animationEvent in ipairs(mergeData.MergedEvents) do
   -- Check if there were any events merged.
   if (animationEvent.NumMerged > 0) then
    -- Create trailer text with the number of merged events.
@@ -846,14 +866,14 @@ function MikSBT.MergeEvents(mergeData, numEvents)
  -- Remove the processed animation events from unmerged events queue.
  for x = 1, numEvents do
   -- Check if the event was merged into a different animation event.
-  if (mergeData.UnmergedEvents[x] and mergeData.UnmergedEvents[x].EventMerged) then
+  if (unmergedEvents[x] and unmergedEvents[x].EventMerged) then
    -- Reclaim the animation event table to the events recycler.
-   eventsRecycler:ReclaimTable(mergeData.UnmergedEvents[x]);
+   eventsRecycler:ReclaimTable(unmergedEvents[x]);
   end
 
-  mergeData.UnmergedEvents[x] = nil;
+  unmergedEvents[x] = nil;
  end
- table_setn(mergeData.UnmergedEvents, 0);
+ if table_setn then pcall(table_setn, unmergedEvents, 0); end
 end
 
 
@@ -1085,7 +1105,13 @@ function MikSBT.FormatEventText(animationEvent)
  animationEvent._unitID = unitID
  animationEvent._unitName = unitName
  if unitName and unitID and not UnitIsUnit(unitID, "player") then
-  outputString = string_gsub(outputString, "%%n", unitName);
+  local formattedName = unitName
+  local _, class = UnitClass(unitID)
+  local colorPrefix = class and CLASS_COLORS[class]
+  if colorPrefix then
+   formattedName = colorPrefix .. unitName .. "|h|r"
+  end
+  outputString = string_gsub(outputString, "%%n", formattedName);
  else
   outputString = string_gsub(outputString, "%(%%n%)", "");
   outputString = string_gsub(outputString, "%%n", "");
@@ -1165,10 +1191,10 @@ end
 -- **********************************************************************************
 function MikSBT.UpdateProfiles()
  -- Loop through all the profiles.
- for _, profile in pairs(MikSBT_Save.Profiles or {}) do
+ for profileName, profile in pairs(MikSBT_Save.Profiles or {}) do
   if type(profile) == "table" then
    if not profile.CreationVersion then
-    MikSBT.ResetProfile(profile)
+    MikSBT.ResetProfile(profileName)
    else
     -- Backfill any missing default EventSettings, Triggers, Suppressions, and FontSettings
     if MikSBT.DEFAULT_CONFIG then
@@ -1203,17 +1229,10 @@ end
 -- Returns whether or not the passed profile exists.
 -- **********************************************************************************
 function MikSBT.ProfileExists(profileName)
- local profileFound = false;
-
- -- Loop through all of the profiles looking for the passed one.
- for pName in MikSBT_Save.Profiles do
-  if (pName == profileName) then
-   profileFound = true;   
-  end
+ if (MikSBT_Save and MikSBT_Save.Profiles and profileName and MikSBT_Save.Profiles[profileName] ~= nil) then
+  return true;
  end
-
- -- Return whether or not the profile exists.
- return profileFound;
+ return false;
 end
 
 
@@ -1247,6 +1266,14 @@ function MikSBT.ResetProfile(profileName, showOutput)
 
    -- Register the triggers with the combat event helper.
    MikSBT.RegisterTriggers();
+
+   -- Set Game Damage font if configured
+   if MikSBT.CurrentProfile and MikSBT.CurrentProfile.BlizzardFontSettings and MikSBT.CurrentProfile.BlizzardFontSettings.Normal then
+    local fontIndex = MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex
+    if MikSBT.AVAILABLE_FONTS and MikSBT.AVAILABLE_FONTS[fontIndex] then
+     DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[fontIndex].Path or "Fonts\\FRIZQT__.TTF"
+    end
+   end
   end
 
   -- Check if the output text is to be shown.
@@ -1286,6 +1313,14 @@ function MikSBT.SelectProfile(profileName)
 
   -- Register the triggers with the combat event helper.
   MikSBT.RegisterTriggers();
+
+  -- Set Game Damage font if configured
+  if MikSBT.CurrentProfile and MikSBT.CurrentProfile.BlizzardFontSettings and MikSBT.CurrentProfile.BlizzardFontSettings.Normal then
+   local fontIndex = MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex
+   if MikSBT.AVAILABLE_FONTS and MikSBT.AVAILABLE_FONTS[fontIndex] then
+    DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[fontIndex].Path or "Fonts\\FRIZQT__.TTF"
+   end
+  end
  end
 end
 
@@ -1471,9 +1506,12 @@ local function ProcessMerge(mergeData)
  if (not mergeData or stillMerging) then return end
  stillMerging = true;
 
- local numEvents = #mergeData.UnmergedEvents;
+ local unmerged = mergeData.UnmergedEvents;
+ mergeData.UnmergedEvents = {};
+ local numEvents = #unmerged;
+
  if (numEvents > 0) then
-  MikSBT.MergeEvents(mergeData, numEvents);
+  MikSBT.MergeEvents(mergeData, unmerged, numEvents);
 
   for _, animationEvent in ipairs(mergeData.MergedEvents) do
    MikSBT.AddAnimation(animationEvent);
@@ -1555,7 +1593,7 @@ function MikSBT.AddAnimation(animationEvent)
  MikSBT.FormatEventText(animationEvent);
 
  -- Loop through all of the suppression entries and look for a match.
- for _, suppressionSettings in MikSBT.CurrentProfile.Suppressions do
+ for _, suppressionSettings in pairs(MikSBT.CurrentProfile.Suppressions or {}) do
   -- Check if the suppression's search pattern is a match.
   if (suppressionSettings.Enabled and (string_find(animationEvent.Text, suppressionSettings.SearchPattern))) then
    -- Reclaim the animation event table to the events recycler and leave the function.
@@ -1579,17 +1617,6 @@ function MikSBT.AddAnimation(animationEvent)
  -- Check if the animation event is to be displayed sticky style.
  if (animationEvent.EventSettings ~= nil and animationEvent.EventSettings.IsSticky) then
   animationEvent.IsSticky = true;
- end
-
- -- Color UnitName by class (reuse cached lookup from FormatEventText)
- local unitID = animationEvent._unitID
- local uName = animationEvent._unitName
- if unitID then
-  local _, class = UnitClass(unitID)
-  local colorPrefix = class and CLASS_COLORS[class]
-  if colorPrefix then
-   animationEvent.Text = string_gsub(animationEvent.Text, animationEvent.Name, colorPrefix .. uName .. "|h|r")
-  end
  end
 
  -- Get the next available animation display info object for the scroll area.
