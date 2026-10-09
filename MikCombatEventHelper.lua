@@ -124,9 +124,9 @@ MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH	= 5;
 MikCEH.TRIGGERTYPE_SEARCH_PATTERN	= 6;
 
 -- Hit info bit flags.
-local HITINFO_CRITICALHIT = 2;
-local HITINFO_CRUSHING    = 32;
-local HITINFO_GLANCING    = 64;
+local HITINFO_CRITICALHIT = 128;
+local HITINFO_CRUSHING    = 32768;
+local HITINFO_GLANCING    = 16384;
 
 -- Lookup tables for NamPower event fields.
 local nampowerVictimStateToAction = {
@@ -134,7 +134,7 @@ local nampowerVictimStateToAction = {
  [1] = MikCEH.ACTIONTYPE_HIT,
  [2] = MikCEH.ACTIONTYPE_DODGE,
  [3] = MikCEH.ACTIONTYPE_PARRY,
- [4] = MikCEH.ACTIONTYPE_BLOCK,
+ [4] = MikCEH.ACTIONTYPE_HIT,
  [5] = MikCEH.ACTIONTYPE_BLOCK,
  [6] = MikCEH.ACTIONTYPE_EVADE,
  [7] = MikCEH.ACTIONTYPE_IMMUNE,
@@ -193,13 +193,14 @@ local playerGUID = nil;
 -- DLL feature flags.
 local hasNampower = false;
 local hasSuperWoW = false;
-local hasUnitXP = false;
+
 
 -- Recycled event tables.
 MikCEH.CombatEventData = {};
 MikCEH.TriggerEventData = {};
 local orderedCaptureData = {};
 local globalStringInfoArray = {};
+local globalStringInfoSize = 0;
 
 -- Triggers format.
 local selfHealthTriggers = {};
@@ -216,14 +217,28 @@ local lastEnemyHealthPercentage = 0;
 local lastFriendlyHealthPercentage = 0;
 
 local recentlySelectedPlayers = {};
-local RECENTLY_SELECTED_PLAYERS_UPDATE_INTERVAL = 10;
-local elapsedTime = 0;
+local MAX_RECENT_PLAYERS = 64;
 
 local TRIGGER_THROTTLE_INTERVAL = 0.15;
-local lastTriggerCheckTime = 0;
+local lastHealthTriggerCheckTime = {player = 0, target = 0, pet = 0};
+local lastManaTriggerCheckTime = 0;
+local pendingHealthChecks = {};
+local thresholdGeneration = 0;
+
+local function ParseHealthUnit(unit)
+ if unit == "player" then MikCEH.ParseSelfHealthTriggers();
+ elseif unit == "pet" then MikCEH.ParsePetHealthTriggers();
+ elseif UnitIsFriend("player", "target") then MikCEH.ParseFriendlyHealthTriggers();
+ else MikCEH.ParseEnemyHealthTriggers(); end
+end
 
 -- Caches.
 local spellNameCache = {};
+local spellNameCacheSize = 0;
+local MAX_SPELL_NAMES = 256;
+local searchTriggers = {};
+local searchFrame;
+local searchFilter;
 
 local nampowerEventFrame = nil;
 local nampowerHandlers = {};
@@ -234,19 +249,9 @@ local nampowerHandlers = {};
 
 local function GetUnitGuidSafe(unit)
  if not unit then return nil end
- if GetUnitGUID then
-  local ok, guid = pcall(GetUnitGUID, unit)
-  if ok and guid and guid ~= "" then return guid end
- end
- if UnitExists then
-  local ok, exists, guid = pcall(UnitExists, unit)
-  if ok and exists and guid and guid ~= "" then return guid end
- end
- if UnitGUID then
-  local ok, guid = pcall(UnitGUID, unit)
-  if ok and guid and guid ~= "" then return guid end
- end
- return nil
+ local exists, guid = UnitExists(unit);
+ if exists and guid and guid ~= "" then return guid end
+ return nil;
 end
 
 local function GetPlayerGUID()
@@ -268,36 +273,29 @@ local function IsPlayerGUID(guid)
 end
 
 local function IsPetGUID(guid)
- if not guid or guid == "" or not UnitExists("pet") then return false end
+ if not guid or guid == "" then return false end
  local petGuid = GetUnitGuidSafe("pet")
  if not petGuid then return false end
  return (guid == petGuid) or (string_lower(tostring(guid)) == string_lower(tostring(petGuid)))
 end
 
 local function GetNameFromGUID(guid)
- if not guid or guid == "" then return nil end
- if hasSuperWoW and UnitName then
-  local ok, n = pcall(UnitName, guid)
-  if ok and n and n ~= "" then return n end
- end
- if hasSuperWoW and UnitExists then
-  local ok, exists, uid = pcall(UnitExists, guid)
-  if ok and exists and uid then
-   local n = UnitName(uid)
-   if n and n ~= "" then return n end
-  end
- end
- if GetUnitField then
-  local ok, name = pcall(GetUnitField, guid, "name")
-  if ok and name and name ~= "" then return name end
- end
- if UnitExists("target") and UnitName("target") then
-  local tGuid = GetUnitGuidSafe("target")
-  if tGuid and (tGuid == guid or string_lower(tostring(tGuid)) == string_lower(tostring(guid))) then
-   return UnitName("target")
-  end
- end
- return nil
+ if not guid or guid == "" or not UnitExists(guid) then return nil end
+ return UnitName(guid);
+end
+
+local function GetCombatDirection(casterGuid, targetGuid)
+ if IsPlayerGUID(targetGuid) then return MikCEH.DIRECTIONTYPE_PLAYER_INCOMING end
+ if IsPetGUID(targetGuid) then return MikCEH.DIRECTIONTYPE_PET_INCOMING end
+ if IsPlayerGUID(casterGuid) then return MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING end
+ if IsPetGUID(casterGuid) then return MikCEH.DIRECTIONTYPE_PET_OUTGOING end
+end
+
+local function SetCombatIdentity(eventData, casterGuid, targetGuid)
+ eventData.SourceGUID, eventData.TargetGUID = casterGuid, targetGuid;
+ local incoming = eventData.DirectionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or
+                  eventData.DirectionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
+ eventData.UnitGUID = incoming and casterGuid or targetGuid;
 end
 
 local function GetSpellNameFromId(spellId)
@@ -317,7 +315,14 @@ local function GetSpellNameFromId(spellId)
   name = MikSBT.SpellName(spellId, "Ability")
  end
 
- if name then spellNameCache[spellId] = name end
+ if name then
+  if spellNameCacheSize >= MAX_SPELL_NAMES then
+   table_wipe(spellNameCache);
+   spellNameCacheSize = 0;
+  end
+  spellNameCache[spellId] = name;
+  spellNameCacheSize = spellNameCacheSize + 1;
+ end
  return name
 end
 
@@ -373,25 +378,13 @@ nampowerHandlers["SPELL_DAMAGE_EVENT_SELF"] = function()
  local spellSchool = arg7
  local effectAuraStr = arg8
 
- local directionType
- if IsPetGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_OUTGOING
- elseif IsPlayerGUID(casterGuid) then
-  if IsPlayerGUID(targetGuid) then
-   directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
-  else
-   directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
-  end
- elseif IsPlayerGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- else
-  -- If GUIDs are still resolving on startup, default to player outgoing
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- end
+ local directionType = GetCombatDirection(casterGuid, targetGuid);
+ if not directionType then return end;
 
  local spellName = GetSpellNameFromId(spellId)
  local damageType = SchoolToDamageType(spellSchool)
- local targetName = GetNameFromGUID(targetGuid) or UnitName("target")
+ local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
+ local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
 
  local isDoT = false
  if effectAuraStr then
@@ -403,58 +396,19 @@ nampowerHandlers["SPELL_DAMAGE_EVENT_SELF"] = function()
  local hitType = MikCEH.HITTYPE_NORMAL
  if isDoT then
   hitType = MikCEH.HITTYPE_OVER_TIME
- elseif hitInfo ~= 0 then
+ elseif bit_band(hitInfo, 2) ~= 0 then
   hitType = MikCEH.HITTYPE_CRIT
  end
 
  local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, hitType, damageType, damage, spellName, targetName)
  eventData.SpellId = spellId
+ eventData.IsCrit = bit_band(hitInfo, 2) ~= 0;
  ParseNampowerMitigation(mitigationStr, eventData)
+ SetCombatIdentity(eventData, casterGuid, targetGuid);
  MikCEH.SendEvent(eventData)
 end
 
-nampowerHandlers["SPELL_DAMAGE_EVENT_OTHER"] = function()
- local targetGuid, casterGuid = arg1, arg2
- local spellId = arg3
- local damage = tonumber(arg4) or 0
- local mitigationStr = arg5
- local hitInfo = tonumber(arg6) or 0
- local spellSchool = arg7
- local effectAuraStr = arg8
-
- -- ONLY process if the target is the player or player's pet!
- local directionType
- if IsPlayerGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- elseif IsPetGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_INCOMING
- else
-  return -- Ignore other raid members/NPC damage
- end
-
- local spellName = GetSpellNameFromId(spellId)
- local damageType = SchoolToDamageType(spellSchool)
- local casterName = GetNameFromGUID(casterGuid)
-
- local isDoT = false
- if effectAuraStr then
-  local _, _, auraTypeStr = string_find(effectAuraStr, "%d+,%d+,%d+,(%d+)")
-  local auraType = tonumber(auraTypeStr)
-  if auraType == 3 or auraType == 89 then isDoT = true end
- end
-
- local hitType = MikCEH.HITTYPE_NORMAL
- if isDoT then
-  hitType = MikCEH.HITTYPE_OVER_TIME
- elseif hitInfo ~= 0 then
-  hitType = MikCEH.HITTYPE_CRIT
- end
-
- local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, hitType, damageType, damage, spellName, casterName)
- eventData.SpellId = spellId
- ParseNampowerMitigation(mitigationStr, eventData)
- MikCEH.SendEvent(eventData)
-end
+nampowerHandlers["SPELL_DAMAGE_EVENT_OTHER"] = nampowerHandlers["SPELL_DAMAGE_EVENT_SELF"];
 
 nampowerHandlers["AUTO_ATTACK_SELF"] = function()
  local casterGuid, targetGuid = arg1, arg2
@@ -465,22 +419,24 @@ nampowerHandlers["AUTO_ATTACK_SELF"] = function()
  local absorbedDmg = tonumber(arg8) or 0
  local resistedDmg = tonumber(arg9) or 0
 
- local directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- if IsPetGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_OUTGOING
- end
+ local directionType = GetCombatDirection(casterGuid, targetGuid);
+ if not directionType then return end;
 
- local targetName = GetNameFromGUID(targetGuid) or UnitName("target")
+ local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
+ local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
  local actionType = nampowerVictimStateToAction[victimState]
  if absorbedDmg > 0 and damage == 0 then
   actionType = MikCEH.ACTIONTYPE_ABSORB
+ elseif blockedDmg > 0 and damage > 0 then
+  actionType = MikCEH.ACTIONTYPE_HIT
  elseif not actionType then
   actionType = (damage > 0) and MikCEH.ACTIONTYPE_HIT or MikCEH.ACTIONTYPE_MISS
  end
 
  if actionType ~= MikCEH.ACTIONTYPE_HIT then
   local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, nil, targetName)
-  MikCEH.SendEvent(eventData)
+  SetCombatIdentity(eventData, casterGuid, targetGuid);
+ MikCEH.SendEvent(eventData)
   return
  end
 
@@ -514,132 +470,35 @@ nampowerHandlers["AUTO_ATTACK_SELF"] = function()
   end
  end
 
+ SetCombatIdentity(eventData, casterGuid, targetGuid);
  MikCEH.SendEvent(eventData)
 end
 
-nampowerHandlers["AUTO_ATTACK_OTHER"] = function()
- local casterGuid, targetGuid = arg1, arg2
- local damage = tonumber(arg3) or 0
- local hitInfo = tonumber(arg4) or 0
- local victimState = tonumber(arg5)
- local blockedDmg = tonumber(arg7) or 0
- local absorbedDmg = tonumber(arg8) or 0
- local resistedDmg = tonumber(arg9) or 0
+nampowerHandlers["AUTO_ATTACK_OTHER"] = nampowerHandlers["AUTO_ATTACK_SELF"];
 
- -- ONLY process if the target is the player or player's pet!
- local directionType
- if IsPlayerGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- elseif IsPetGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_INCOMING
- else
-  return -- Ignore other raid members/NPCs attacking each other
- end
-
- local casterName = GetNameFromGUID(casterGuid)
- local actionType = nampowerVictimStateToAction[victimState]
- if absorbedDmg > 0 and damage == 0 then
-  actionType = MikCEH.ACTIONTYPE_ABSORB
- elseif not actionType then
-  actionType = (damage > 0) and MikCEH.ACTIONTYPE_HIT or MikCEH.ACTIONTYPE_MISS
- end
-
- if actionType ~= MikCEH.ACTIONTYPE_HIT then
-  local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, nil, casterName)
-  MikCEH.SendEvent(eventData)
-  return
- end
-
- local hitType = MikCEH.HITTYPE_NORMAL
- if hitInfo and bit_band then
-  if bit_band(hitInfo, HITINFO_CRITICALHIT) ~= 0 then
-   hitType = MikCEH.HITTYPE_CRIT
-  end
- end
-
- local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, hitType, MikCEH.DAMAGETYPE_PHYSICAL, damage, nil, casterName)
-
- if hitInfo and bit_band then
-  if bit_band(hitInfo, HITINFO_CRUSHING) ~= 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_CRUSHING
-  elseif bit_band(hitInfo, HITINFO_GLANCING) ~= 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_GLANCING
-  end
- end
-
- if not eventData.PartialActionType then
-  if absorbedDmg > 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_ABSORB
-   eventData.PartialAmount = absorbedDmg
-  elseif blockedDmg > 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_BLOCK
-   eventData.PartialAmount = blockedDmg
-  elseif resistedDmg > 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_RESIST
-   eventData.PartialAmount = resistedDmg
-  end
- end
-
- MikCEH.SendEvent(eventData)
+local function HandleSpellHeal()
+ local targetGuid, casterGuid = arg1, arg2;
+ local directionType = GetCombatDirection(casterGuid, targetGuid);
+ if not directionType then return end;
+ local healType = MikCEH.HEALTYPE_NORMAL;
+ if tonumber(arg6) == 1 then healType = MikCEH.HEALTYPE_OVER_TIME;
+ elseif tonumber(arg5) == 1 then healType = MikCEH.HEALTYPE_CRIT; end
+ local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
+ local eventData = MikCEH.GetHealEventData(directionType, healType, tonumber(arg4) or 0,
+   GetSpellNameFromId(arg3), GetNameFromGUID(incoming and casterGuid or targetGuid));
+ eventData.SpellId = arg3;
+ eventData.IsCrit = tonumber(arg5) == 1;
+ SetCombatIdentity(eventData, casterGuid, targetGuid);
+ -- NamPower 4.6.2 has no effective-heal/overheal field or guaranteed health-update ordering.
+ MikCEH.SendEvent(eventData);
 end
 
-nampowerHandlers["SPELL_HEAL_ON_SELF"] = function()
- local targetGuid, casterGuid = arg1, arg2
- local spellId = arg3
- local healAmount = tonumber(arg4) or 0
- local isCrit = tonumber(arg5) or 0
- local isHot = tonumber(arg6) or 0
-
- if not IsPlayerGUID(targetGuid) and not IsPetGUID(targetGuid) then return end
-
- local spellName = GetSpellNameFromId(spellId)
- local casterName = GetNameFromGUID(casterGuid)
-
- local healType = MikCEH.HEALTYPE_NORMAL
- if isHot ~= 0 then
-  healType = MikCEH.HEALTYPE_OVER_TIME
- elseif isCrit ~= 0 then
-  healType = MikCEH.HEALTYPE_CRIT
- end
-
- local directionType = IsPetGUID(targetGuid) and MikCEH.DIRECTIONTYPE_PET_INCOMING or MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- local targetName = (directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and (UnitName("pet") or "Pet") or playerName
-
- local eventData = MikCEH.GetHealEventData(directionType, healType, healAmount, spellName, casterName)
- eventData.SpellId = spellId
-
- eventData.Name = targetName
- MikCEH.PopulateOverhealData(eventData)
- eventData.Name = casterName
- MikCEH.SendEvent(eventData)
-end
-
+nampowerHandlers["SPELL_HEAL_ON_SELF"] = HandleSpellHeal;
 nampowerHandlers["SPELL_HEAL_BY_SELF"] = function()
- local targetGuid, casterGuid = arg1, arg2
- local spellId = arg3
- local healAmount = tonumber(arg4) or 0
- local isCrit = tonumber(arg5) or 0
- local isHot = tonumber(arg6) or 0
-
- if not IsPlayerGUID(casterGuid) and not IsPetGUID(casterGuid) then return end
- if IsPlayerGUID(targetGuid) or IsPetGUID(targetGuid) then return end -- handled by SPELL_HEAL_ON_SELF
-
- local spellName = GetSpellNameFromId(spellId)
- local targetName = GetNameFromGUID(targetGuid) or UnitName("target")
-
- local healType = MikCEH.HEALTYPE_NORMAL
- if isHot ~= 0 then
-  healType = MikCEH.HEALTYPE_OVER_TIME
- elseif isCrit ~= 0 then
-  healType = MikCEH.HEALTYPE_CRIT
- end
-
- local eventData = MikCEH.GetHealEventData(MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING, healType, healAmount, spellName, targetName)
- eventData.SpellId = spellId
-
- MikCEH.PopulateOverhealData(eventData)
- MikCEH.SendEvent(eventData)
+ if IsPlayerGUID(arg1) then return end; -- The provider also emits ON_SELF for this heal.
+ HandleSpellHeal();
 end
+nampowerHandlers["SPELL_HEAL_BY_OTHER"] = nampowerHandlers["SPELL_HEAL_BY_SELF"];
 
 nampowerHandlers["SPELL_ENERGIZE_ON_SELF"] = function()
  local spellId = arg3
@@ -652,6 +511,7 @@ nampowerHandlers["SPELL_ENERGIZE_ON_SELF"] = function()
  local spellName = GetSpellNameFromId(spellId)
  local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_GAIN, amount, powerTypeStr, spellName)
  eventData.SpellId = spellId
+ eventData.IsSpellManaGain = powerType == 0;
 
  MikCEH.SendEvent(eventData)
 end
@@ -661,49 +521,22 @@ nampowerHandlers["SPELL_MISS_SELF"] = function()
  local spellId = arg3
  local missInfo = tonumber(arg4) or 0
 
- local directionType
- if IsPetGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_OUTGOING
- elseif IsPlayerGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- else
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- end
+ local directionType = GetCombatDirection(casterGuid, targetGuid);
+ if not directionType then return end;
 
  local spellName = GetSpellNameFromId(spellId)
- local targetName = GetNameFromGUID(targetGuid) or UnitName("target")
+ local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
+ local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
  local actionType = nampowerMissToAction[missInfo] or MikCEH.ACTIONTYPE_MISS
 
  local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, spellName, targetName)
  eventData.SpellId = spellId
 
+ SetCombatIdentity(eventData, casterGuid, targetGuid);
  MikCEH.SendEvent(eventData)
 end
 
-nampowerHandlers["SPELL_MISS_OTHER"] = function()
- local casterGuid, targetGuid = arg1, arg2
- local spellId = arg3
- local missInfo = tonumber(arg4) or 0
-
- -- ONLY process if the target is the player or player's pet!
- local directionType
- if IsPlayerGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- elseif IsPetGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_INCOMING
- else
-  return -- Ignore misses against other raid members/NPCs
- end
-
- local spellName = GetSpellNameFromId(spellId)
- local casterName = GetNameFromGUID(casterGuid)
- local actionType = nampowerMissToAction[missInfo] or MikCEH.ACTIONTYPE_MISS
-
- local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, spellName, casterName)
- eventData.SpellId = spellId
-
- MikCEH.SendEvent(eventData)
-end
+nampowerHandlers["SPELL_MISS_OTHER"] = nampowerHandlers["SPELL_MISS_SELF"];
 
 nampowerHandlers["DAMAGE_SHIELD_SELF"] = function()
  -- NamPower 4.6.2+: shield owner, damaged attacker, damage, school; no spell ID.
@@ -711,53 +544,20 @@ nampowerHandlers["DAMAGE_SHIELD_SELF"] = function()
  local damage = tonumber(arg3) or 0
  local spellSchool = arg4
 
- local directionType
- if IsPlayerGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- elseif IsPlayerGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- elseif IsPetGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_OUTGOING
- elseif IsPetGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_INCOMING
- else
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- end
+ local directionType = GetCombatDirection(casterGuid, targetGuid);
+ if not directionType then return end;
 
  local spellName = "Damage Shield"
  local damageType = SchoolToDamageType(spellSchool)
- local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid) or UnitName("target"))
+ local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid))
 
  local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, MikCEH.HITTYPE_NORMAL, damageType, damage, spellName, name)
+ eventData.NoSpellIcon = true;
+ SetCombatIdentity(eventData, casterGuid, targetGuid);
  MikCEH.SendEvent(eventData)
 end
 
-nampowerHandlers["DAMAGE_SHIELD_OTHER"] = function()
- -- NamPower 4.6.2+: shield owner, damaged attacker, damage, school; no spell ID.
- local casterGuid, targetGuid = arg1, arg2
- local damage = tonumber(arg3) or 0
- local spellSchool = arg4
-
- local directionType
- if IsPlayerGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_INCOMING
- elseif IsPetGUID(targetGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_INCOMING
- elseif IsPlayerGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING
- elseif IsPetGUID(casterGuid) then
-  directionType = MikCEH.DIRECTIONTYPE_PET_OUTGOING
- else
-  return
- end
-
- local spellName = "Damage Shield"
- local damageType = SchoolToDamageType(spellSchool)
- local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid) or UnitName("target"))
-
- local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, MikCEH.HITTYPE_NORMAL, damageType, damage, spellName, name)
- MikCEH.SendEvent(eventData)
-end
+nampowerHandlers["DAMAGE_SHIELD_OTHER"] = nampowerHandlers["DAMAGE_SHIELD_SELF"];
 
 nampowerHandlers["ENVIRONMENTAL_DMG_SELF"] = function()
  local targetGuid = arg1
@@ -844,15 +644,17 @@ end
 -- Core Helper Initialization & Lifecycle
 -------------------------------------------------------------------------------------
 
-local function PurgeRecentlySelectedPlayers()
+local function RememberSelectedPlayer(name)
+ local now, count, oldestName, oldestTime = GetTime(), 0, nil, nil;
  for pName, lastSeen in pairs(recentlySelectedPlayers) do
-  lastSeen = lastSeen + 5.0;
-  if (lastSeen >= 60) then
-   recentlySelectedPlayers[pName] = nil;
+  if now - lastSeen >= 60 then recentlySelectedPlayers[pName] = nil;
   else
-   recentlySelectedPlayers[pName] = lastSeen;
+   count = count + 1;
+   if not oldestTime or lastSeen < oldestTime then oldestName, oldestTime = pName, lastSeen end
   end
  end
+ if not recentlySelectedPlayers[name] and count >= MAX_RECENT_PLAYERS then recentlySelectedPlayers[oldestName] = nil end
+ recentlySelectedPlayers[name] = now;
 end
 
 function MikCEH.Init()
@@ -861,11 +663,11 @@ function MikCEH.Init()
 
  hasNampower = (GetNampowerVersion ~= nil);
  hasSuperWoW = (SUPERWOW_VERSION ~= nil) or (SpellInfo ~= nil);
- hasUnitXP = (type(UnitXP) == "function");
+
 
  MikCEH.hasNampower = hasNampower;
  MikCEH.hasSuperWoW = hasSuperWoW;
- MikCEH.hasUnitXP = hasUnitXP;
+
 
  if not hasNampower or not hasSuperWoW then
   DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Modern]|r Requires NamPower and SuperWoW 2.2 for combat event processing!", 1, 0.2, 0.2);
@@ -885,12 +687,11 @@ function MikCEH.Init()
   pcall(SetCVar, "NP_EnableSpellEnergizeEvents", "1")
  end
 
- if C_Timer and C_Timer.NewTicker then
-  C_Timer.NewTicker(5.0, PurgeRecentlySelectedPlayers);
- end
+
 end
 
 function MikCEH.RegisterEvents()
+ if searchFilter then MikCEH.EnableEventSearching(searchFilter) end;
  if MCEHEventFrame then
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED");
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_DISABLED");
@@ -898,6 +699,7 @@ function MikCEH.RegisterEvents()
   MCEHEventFrame:RegisterEvent("UNIT_HEALTH");
   MCEHEventFrame:RegisterEvent("UNIT_MANA");
   MCEHEventFrame:RegisterEvent("PLAYER_TARGET_CHANGED");
+  MCEHEventFrame:RegisterEvent("UNIT_PET");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_SKILL");
@@ -911,6 +713,7 @@ function MikCEH.RegisterEvents()
   nampowerEventFrame:RegisterEvent("AUTO_ATTACK_SELF");
   nampowerEventFrame:RegisterEvent("AUTO_ATTACK_OTHER");
   nampowerEventFrame:RegisterEvent("SPELL_HEAL_BY_SELF");
+  nampowerEventFrame:RegisterEvent("SPELL_HEAL_BY_OTHER");
   nampowerEventFrame:RegisterEvent("SPELL_HEAL_ON_SELF");
   nampowerEventFrame:RegisterEvent("SPELL_ENERGIZE_ON_SELF");
   nampowerEventFrame:RegisterEvent("SPELL_MISS_SELF");
@@ -923,6 +726,10 @@ function MikCEH.RegisterEvents()
   nampowerEventFrame:RegisterEvent("DAMAGE_SHIELD_OTHER");
   nampowerEventFrame:RegisterEvent("ENVIRONMENTAL_DMG_SELF");
  end
+ if searchFrame then
+  for name in pairs(searchTriggers) do searchFrame:RegisterEvent(name) end
+ end
+ MikCEH.ResetThresholdState();
 end
 
 function MikCEH.UnregisterEvents()
@@ -933,6 +740,7 @@ function MikCEH.UnregisterEvents()
   MCEHEventFrame:UnregisterEvent("UNIT_HEALTH");
   MCEHEventFrame:UnregisterEvent("UNIT_MANA");
   MCEHEventFrame:UnregisterEvent("PLAYER_TARGET_CHANGED");
+  MCEHEventFrame:UnregisterEvent("UNIT_PET");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_SKILL");
@@ -943,18 +751,59 @@ function MikCEH.UnregisterEvents()
  if nampowerEventFrame then
   nampowerEventFrame:UnregisterAllEvents();
  end
+ if searchFrame then searchFrame:UnregisterAllEvents() end;
+ table_wipe(recentlySelectedPlayers);
+ MikCEH.ResetThresholdState();
+end
+
+function MikCEH.OnSearchEvent()
+ if type(arg1) ~= "string" then return end;
+ if searchFilter and string_find(event, searchFilter, 1, true) then
+  MikSBT.Print(event .. ": " .. arg1);
+ end
+ local triggers = searchTriggers[event];
+ if not triggers then return end;
+ for key, settings in pairs(triggers) do
+  for _, pattern in ipairs(settings.SearchPatterns or {}) do
+   local info = MikCEH.GetGlobalStringInfo(pattern);
+   local captures = {pcall(string_find, arg1, info and info.Search or pattern)};
+   if captures[1] and captures[2] then
+    local data = MikCEH.TriggerEventData;
+    MikCEH.EraseTable(data);
+    data.TriggerKey, data.NumCaptures = key, #captures - 3;
+    for i = 1, data.NumCaptures do
+     local position = info and info.ArgumentOrder[i] or i;
+     data["CapturedData" .. position] = captures[i+3];
+    end
+    MikCEH.SendTriggerEvent(data);
+    break;
+   end
+  end
+ end
 end
 
 function MikCEH.EnableEventSearching(searchPattern)
+ searchFilter = searchPattern;
+ if searchFrame and not (MikSBT_Save and MikSBT_Save.UserDisabled) then
+  for _, name in ipairs(MikSBTOpt.AvailableTriggerEvents or {}) do searchFrame:RegisterEvent(name) end;
+ end
 end
-
 function MikCEH.DisableEventSearching()
+ searchFilter = nil;
+ if searchFrame then
+  searchFrame:UnregisterAllEvents();
+  if not (MikSBT_Save and MikSBT_Save.UserDisabled) then
+   for name in pairs(searchTriggers) do searchFrame:RegisterEvent(name) end;
+  end
+ end
 end
 
 function MikCEH.OnLoad()
  MCEHEventFrame:RegisterEvent("ADDON_LOADED");
  MCEHEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD");
 
+ searchFrame = CreateFrame("Frame");
+ searchFrame:SetScript("OnEvent", MikCEH.OnSearchEvent);
  nampowerEventFrame = CreateFrame("Frame");
  nampowerEventFrame:SetScript("OnEvent", MikCEH.OnNampowerEvent);
 
@@ -969,8 +818,12 @@ function MikCEH.OnEvent()
   end
 
  elseif (event == "PLAYER_ENTERING_WORLD") then
-  this:UnregisterEvent("PLAYER_ENTERING_WORLD");
+  playerGUID = nil;
   EnsurePlayerGUID();
+  table_wipe(spellNameCache); spellNameCacheSize = 0;
+  table_wipe(globalStringInfoArray); globalStringInfoSize = 0;
+  table_wipe(recentlySelectedPlayers);
+  MikCEH.ResetThresholdState();
 
  elseif (event == "PLAYER_REGEN_ENABLED") then
   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_COMBAT_LEAVE, nil, nil);
@@ -988,38 +841,51 @@ function MikCEH.OnEvent()
   end
 
  elseif (event == "UNIT_HEALTH") then
+  if arg1 == "player" and not next(selfHealthTriggers) then return end;
+  if arg1 == "pet" and not next(petHealthTriggers) then return end;
+  if arg1 == "target" and not next(enemyHealthTriggers) and not next(friendlyHealthTriggers) then return end;
+  local lastCheck = lastHealthTriggerCheckTime[arg1];
+  if not lastCheck then return end;
   local now = GetTime();
-  if (now - lastTriggerCheckTime >= TRIGGER_THROTTLE_INTERVAL) then
-   lastTriggerCheckTime = now;
-   if (arg1 == "player") then
-    MikCEH.ParseSelfHealthTriggers();
-   elseif (arg1 == "target") then
-    if (not UnitIsFriend("player", "target")) then
-     MikCEH.ParseEnemyHealthTriggers();
-    else
-     MikCEH.ParseFriendlyHealthTriggers();
-    end
-   elseif (arg1 == "pet") then
-    MikCEH.ParsePetHealthTriggers();
-   end
+  if (now - lastCheck >= TRIGGER_THROTTLE_INTERVAL) then
+   lastHealthTriggerCheckTime[arg1] = now;
+   if pendingHealthChecks[arg1] then pendingHealthChecks[arg1]:Cancel(); pendingHealthChecks[arg1] = nil end;
+   ParseHealthUnit(arg1);
+  elseif not pendingHealthChecks[arg1] then
+   local unit, generation = arg1, thresholdGeneration;
+   pendingHealthChecks[unit] = C_Timer.NewTimer(TRIGGER_THROTTLE_INTERVAL - (now-lastCheck), function()
+    if generation ~= thresholdGeneration then return end;
+    pendingHealthChecks[unit] = nil;
+    lastHealthTriggerCheckTime[unit] = GetTime();
+    ParseHealthUnit(unit);
+   end);
   end
 
  elseif (event == "UNIT_MANA") then
+  if arg1 ~= "player" then return end;
   local now = GetTime();
-  if (now - lastTriggerCheckTime >= TRIGGER_THROTTLE_INTERVAL) then
-   lastTriggerCheckTime = now;
-   if (arg1 == "player") then
-    MikCEH.ParseSelfManaTriggers();
-   end
+  if (now >= lastManaTriggerCheckTime) then
+   lastManaTriggerCheckTime = now;
+   MikCEH.ParseSelfManaTriggers();
   end
 
  elseif (event == "PLAYER_TARGET_CHANGED") then
+  if pendingHealthChecks.target then pendingHealthChecks.target:Cancel(); pendingHealthChecks.target = nil end;
+  lastEnemyHealthPercentage, lastFriendlyHealthPercentage = 1, 1;
+  lastHealthTriggerCheckTime.target = 0;
+  if UnitIsFriend("player", "target") then MikCEH.ParseFriendlyHealthTriggers();
+  else MikCEH.ParseEnemyHealthTriggers(); end
   if (UnitExists("target") and UnitIsPlayer("target") and not UnitIsFriend("player", "target")) then
    local targetName = UnitName("target");
    if (targetName) then
-    recentlySelectedPlayers[targetName] = 0;
+    RememberSelectedPlayer(targetName);
    end
   end
+
+ elseif (event == "UNIT_PET" and arg1 == "player") then
+  if pendingHealthChecks.pet then pendingHealthChecks.pet:Cancel(); pendingHealthChecks.pet = nil end;
+  lastPetHealthPercentage, lastHealthTriggerCheckTime.pet = 1, 0;
+  MikCEH.ParsePetHealthTriggers();
 
  elseif (event == "CHAT_MSG_COMBAT_HONOR_GAIN") then
   local capturedData = MikCEH.GetCapturedData(arg1, "COMBATLOG_HONORGAIN", {"%n", "", "%a"});
@@ -1066,7 +932,7 @@ function MikCEH.OnEvent()
   if (capturedData ~= nil) then
    local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
    if ((UnitExists("target") and (UnitName("target") == capturedData.Name) and UnitIsPlayer("target")) or
-       (recentlySelectedPlayers[capturedData.Name] ~= nil)) then
+       (recentlySelectedPlayers[capturedData.Name] and GetTime() - recentlySelectedPlayers[capturedData.Name] < 60)) then
     notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
    end
    local eventData = MikCEH.GetNotificationEventData(notificationType, nil, capturedData.Name);
@@ -1126,10 +992,6 @@ function MikCEH.GetNotificationEventData(notificationType, amount, effectName, S
  return eventData;
 end
 
-local function GetUnitXPHealth(unitID)
-	return UnitXP("health", unitID), UnitXP("maxhealth", unitID)
-end
-
 function MikCEH.GetUnitIDFromName(uName)
 	if not uName then return nil, nil end
 
@@ -1172,30 +1034,7 @@ function MikCEH.GetUnitIDFromName(uName)
 end
 
 function MikCEH.PopulateOverhealData(eventData)
-	local unitID = MikCEH.GetUnitIDFromName(eventData.Name);
-	if (unitID) then
-		local curHealth, maxHealth
-		if hasUnitXP and UnitXP then
-			local ok, ch, mh = pcall(GetUnitXPHealth, unitID)
-			if ok and ch and mh and mh > 0 then
-				curHealth = ch
-				maxHealth = mh
-			end
-		end
-		if not curHealth or not maxHealth then
-			curHealth = UnitHealth(unitID)
-			maxHealth = UnitHealthMax(unitID)
-		end
-
-		if maxHealth and curHealth and maxHealth > 0 then
-			local healthMissing = maxHealth - curHealth
-			local overhealAmount = (eventData.Amount or 0) - healthMissing
-			if overhealAmount > 0 and maxHealth ~= 100 then
-				eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_OVERHEAL
-				eventData.PartialAmount = overhealAmount
-			end
-		end
-	end
+ -- No supported provider supplies exact overheal. Keep total healing unchanged.
 end
 
 function MikCEH.SendEvent(eventData)
@@ -1214,9 +1053,10 @@ end
 
 function MikCEH.GetGlobalStringInfo(globalStringName)
  local globalString = getglobal(globalStringName);
- if (globalString == nil) then return nil end
+ if type(globalString) ~= "string" then return nil end
 
  if (globalStringInfoArray[globalStringName] == nil) then
+  if globalStringInfoSize >= 256 then table_wipe(globalStringInfoArray); globalStringInfoSize = 0 end;
   local searchString = "";
   local currentChar;
   local formatCode;
@@ -1263,6 +1103,7 @@ function MikCEH.GetGlobalStringInfo(globalStringName)
   end
 
   globalStringInfoArray[globalStringName] = {Search=searchString, ArgumentOrder=argumentOrder};
+  globalStringInfoSize = globalStringInfoSize + 1;
  end
 
  return globalStringInfoArray[globalStringName];
@@ -1276,7 +1117,10 @@ function MikCEH.GetCapturedData(combatMessage, globalStringName, captureOrder)
  local temp = {string_gfind(combatMessage, globalStringInfo.Search)()};
  if (#temp ~= 0) then
   for argNum, substituteValue in pairs(captureOrder) do
-   local captureString = temp[globalStringInfo.ArgumentOrder[argNum]];
+   local captureString;
+   for captureIndex, position in ipairs(globalStringInfo.ArgumentOrder) do
+    if position == argNum then captureString = temp[captureIndex]; break end;
+   end
    if (substituteValue == "%a") then
     orderedCaptureData.Amount = captureString;
    elseif (substituteValue == "%b") then
@@ -1355,11 +1199,21 @@ function MikCEH.RegisterTrigger(triggerKey, triggerSettings)
    enemyHealthTriggers[triggerKey] = triggerSettings;
   elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH) then
    friendlyHealthTriggers[triggerKey] = triggerSettings;
+  elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
+   for _, name in ipairs(triggerSettings.TriggerEvents or {}) do
+    if not searchTriggers[name] then searchTriggers[name] = {} end
+    searchTriggers[name][triggerKey] = triggerSettings;
+    if searchFrame and not (MikSBT_Save and MikSBT_Save.UserDisabled) then searchFrame:RegisterEvent(name) end
+   end
   end
  end
 end
 
 function MikCEH.UnregisterAllTriggers()
+ if searchFrame then searchFrame:UnregisterAllEvents() end;
+ table_wipe(searchTriggers);
+ if searchFilter then MikCEH.EnableEventSearching(searchFilter) end;
+ MikCEH.ResetThresholdState();
  MikCEH.EraseTable(selfHealthTriggers);
  MikCEH.EraseTable(selfManaTriggers);
  MikCEH.EraseTable(petHealthTriggers);
@@ -1367,10 +1221,22 @@ function MikCEH.UnregisterAllTriggers()
  MikCEH.EraseTable(friendlyHealthTriggers);
 end
 
+function MikCEH.ResetThresholdState()
+ thresholdGeneration = thresholdGeneration + 1;
+ for unit, timer in pairs(pendingHealthChecks) do timer:Cancel(); pendingHealthChecks[unit] = nil end;
+ lastSelfHealthPercentage, lastPetHealthPercentage = 0, 0;
+ lastEnemyHealthPercentage, lastFriendlyHealthPercentage = 0, 0;
+ lastSelfManaPercentage = 0;
+ lastSelfManaAmount = UnitMana("player") or 0;
+ lastHealthTriggerCheckTime.player, lastHealthTriggerCheckTime.pet, lastHealthTriggerCheckTime.target = 0, 0, 0;
+ lastManaTriggerCheckTime = 0;
+end
+
 local function CheckHealthThresholds(unit, triggers, lastPercentage)
+ if not next(triggers) or not UnitExists(unit) then return lastPercentage end;
  local health = UnitHealth(unit);
  local maxHealth = UnitHealthMax(unit);
- if not maxHealth or maxHealth == 0 then return lastPercentage end
+ if not health or not maxHealth or maxHealth <= 0 then return lastPercentage end
  local pct = health / maxHealth;
 
  for triggerKey, triggerSettings in pairs(triggers) do
@@ -1402,6 +1268,7 @@ function MikCEH.ParseFriendlyHealthTriggers()
 end
 
 function MikCEH.ParseSelfManaTriggers()
+ if not next(selfManaTriggers) and not (MikSBT.CurrentProfile and MikSBT.CurrentProfile.ShowAllManaGains) then return end;
  if (UnitPowerType("player") == 0) then
   local manaAmount = UnitMana("player");
   local maxMana = UnitManaMax("player");

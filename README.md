@@ -1,53 +1,47 @@
 # Mik's Scrolling Battle Text
 
-A customizable scrolling combat text replacement for World of Warcraft 1.12.1.
-
-## Features
-
-- **Customizable Scroll Areas**: Independently configure and position text areas for incoming attacks, outgoing damage, heals, pet actions, and notifications.
-- **Rich Combat Feedback**: Real-time display of damage hits, critical strikes, periodic ticks, heals, resists, absorbs, and interrupts.
-- **Precision Overheal Tracking**: Displays exact effective healing versus overheal amounts when paired with UnitXP SP3.
-- **Interactive Layout Mover**: Visual on-screen handles make moving and resizing scroll areas intuitive.
-- **Modern Typography**: Includes a clean collection of modern TrueType fonts with interactive preview cycling.
-- **Custom Triggers & Alerts**: Sound and visual warnings for low health/mana, cooldown readiness, and proc notifications.
+Scrolling combat text for World of Warcraft 1.12.1: player and pet damage,
+heals, misses, absorbs, critical hits, resource gains and configurable alerts.
 
 ## Requirements
 
-- **World of Warcraft 1.12.1** (Build 5875)
-- [ClassicAPI v1.15.15+](https://github.com/brues-code/ClassicAPI) (`ClassicAPI.dll`)
-- [SuperWoW v2.2+](https://github.com/balakethelock/SuperWoW) (`SuperWoWhook.dll` / `SuperWoWlauncher.exe`)
-- [NamPower v4.6.2+](https://github.com/Emyrk/nampower) (`nampower.dll`)
-- *Optional:* [UnitXP SP3](https://github.com/brues-code/UnitXP_SP3) (`UnitXP_SP3.dll`) for precision uncapped health inspection and overheal calculations.
+- World of Warcraft 1.12.1 (build 5875).
+- ClassicAPI 1.15.15 or newer, SuperWoW 2.2, and NamPower 4.6.2 or newer.
 
-> Note: Completely restart the game client after installing or updating DLLs. `/reload` cannot reload DLLs.
+Use your client's configured launcher to load those DLLs. DLL changes require
+a complete client restart. UnitXP is not required by MSBT.
 
-## Installation
+## Install or update
 
-1. Copy or clone this repository into your WoW add-on directory:
-   ```text
-   World of Warcraft/Interface/AddOns/MikScrollingBattleText/
-   ```
-2. Verify that `MikScrollingBattleText.toc` is located directly at `Interface/AddOns/MikScrollingBattleText/MikScrollingBattleText.toc`.
-3. Launch WoW using the SuperWoW launcher with NamPower and ClassicAPI enabled.
-4. Ensure MikScrollingBattleText is checked on the character selection AddOn screen.
+Download `MikScrollingBattleText-1.0.0.zip` from
+[Releases](https://github.com/Fostercare5988/MikScrollingBattleText/releases/latest).
+Close the game and extract it into `Interface/AddOns`, so the TOC is at
+`Interface/AddOns/MikScrollingBattleText/MikScrollingBattleText.toc`.
+Enable the addon on the character-selection screen. Keep existing SavedVariables
+when updating to preserve profiles, fonts, triggers, filters and positions.
 
-## Useful Commands
+## Configure
 
-| Command | Description |
-| :--- | :--- |
-| `/msbt` | Open graphical configuration interface |
-| `/msbt reset` | Reset current profile to defaults |
-| `/msbt version` | Display active version in chat |
+Type `/msbt`. The six pages are General, Incoming, Outgoing, Notification,
+Triggers and Suppressions. Configure each scroll area, normal/critical fonts,
+event messages and alerts. Movers support drag positioning, scroll height,
+preview, save and cancel. See [the user guide](docs/USER_GUIDE.md).
 
-## Limitations & Notes
+Commands: `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`.
+`/msbt reset` immediately resets the current profile, including custom triggers
+and filters. Use the existing profile controls when managing multiple profiles.
 
-- **Mouse Passthrough**: Floating combat text frames leave mouse interaction uncaptured so text never blocks targeting, clicking NPCs, or mouse camera control.
-- **Overheal Precision**: Precise overheal calculation requires UnitXP SP3; standard client values are used if UnitXP is absent.
+## Healing and other displays
 
----
+NamPower 4.6.2 supplies total healing. Exact effective healing and overheal are
+unavailable; UnitXP build 90 has no health/maxhealth commands. The stored Show
+Overheals preference remains available without inventing an estimate.
 
-For detailed configuration, font settings, and trigger creation, see the [User Guide](docs/USER_GUIDE.md).
+Show Game Damage controls native damage above enemy heads. Other addons retain
+their own resource, floating-text and encounter displays. Combat text does not
+capture mouse input.
 
-## License & Credits
+## License and credits
 
 Original author: Mik. Maintained by [Fostercare5988](https://github.com/Fostercare5988). Licensed under the MIT License.
+The table recycler credits tekkub's compostLib; original source credits are retained.

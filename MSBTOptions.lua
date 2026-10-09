@@ -2,7 +2,7 @@
 -- Title: Mik's Scrolling Battle Text Options
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
--- Built natively for ClassicAPI v1.15.15+, SuperWoW 2.2+, NamPower 4.6.2+, UnitXP SP3
+-- Built natively for ClassicAPI v1.15.15+, SuperWoW 2.2+, NamPower 4.6.2+
 -------------------------------------------------------------------------------------
 
 -- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.15.15+ & SuperWoW v2.2+)
@@ -80,6 +80,7 @@ local availableOutlinesInherit;
 
 -- Holds a table of available trigger events.
 local availableTriggerEvents = {};
+MikSBTOpt.AvailableTriggerEvents = availableTriggerEvents;
 
 local availableClasses = {
  {Name="Shaman", Value="Shaman"},
@@ -185,6 +186,8 @@ function MikSBTOpt.Init()
 	table.insert(UISpecialFrames, OPTIONS_FRAME_NAME);
 	table.insert(UISpecialFrames, FONT_SETTINGS_FRAME_NAME);
 	table.insert(UISpecialFrames, TRIGGER_CONFIGURATION_FRAME_NAME);
+ table.insert(UISpecialFrames, SCROLL_AREA_MOVER_CONTROL_FRAME_NAME);
+ MikSBTOpt.ApplyTheme();
 end
 
 
@@ -194,11 +197,14 @@ end
 function MikSBTOpt.OnShow()
  -- Ensure options are initialized on show
  if (not MikSBTOpt.isInitialized) then
+  if not MikSBT.CurrentProfile then return end;
   MikSBTOpt.Init();
   MikSBTOpt.isInitialized = true;
  else
   MikSBTOpt.PopulateProfileOptions();
  end
+
+ MikSBTOpt.FitDialog(getglobal(OPTIONS_FRAME_NAME));
 
  -- Holds whether or not to play a sound.
  local doPlaySound = true;
@@ -1041,7 +1047,9 @@ function MikSBTOpt.PopulateSlider(frameName, sliderValue)
   -- Make sure there is a value to set.
   if (tempValue ~= nil) then
    -- Set the slider's value to the appropriate value.
+   associatedSliderFrame.MSBTPopulating = true;
    associatedSliderFrame:SetValue(tempValue);
+   associatedSliderFrame.MSBTPopulating = nil;
 
    -- Update the label to reflect the new value.
    getglobal(frameName .. "Text"):SetText(associatedSliderFrame.savedLabel .. ": " .. associatedSliderFrame:GetValue());
@@ -1054,6 +1062,7 @@ end
 -- Called when a slider values changes.
 -- **********************************************************************************
 function MikSBTOpt.SliderOnValueChanged()
+ if this.MSBTPopulating then return end;
  -- Update the label to reflect the new value.
  getglobal(this:GetName() .. "Text"):SetText(this.savedLabel .. ": " .. this:GetValue());
 
@@ -1069,6 +1078,7 @@ end
 -- Called when a font settings slider values changes.
 -- **********************************************************************************
 function MikSBTOpt.FontSettingsSliderOnValueChanged()
+ if this.MSBTPopulating then return end;
  -- Call the normal slider OnValueChanged handler.
  MikSBTOpt.SliderOnValueChanged();
 
@@ -1081,6 +1091,7 @@ end
 -- Called when the scroll area mover control slider value changes.
 -- **********************************************************************************
 function MikSBTOpt.ScrollAreaMoverControlSliderOnValueChanged()
+ if this.MSBTPopulating then return end;
  -- Call the normal slider OnValueChanged handler.
  MikSBTOpt.SliderOnValueChanged();
 
@@ -1551,7 +1562,9 @@ function MikSBTOpt.PopulateEditbox(frameName, editboxValue)
   -- Make sure there is a value to set.
   if (tempValue) then
    -- Set the value.
+   associatedFrame.MSBTPopulating = true;
    associatedFrame:SetText(tempValue);
+   associatedFrame.MSBTPopulating = nil;
   end
  end
 end
@@ -1561,6 +1574,7 @@ end
 -- Called when the text changes in an edit box.
 -- **********************************************************************************
 function MikSBTOpt.EditboxOnTextChanged()
+ if this.MSBTPopulating then return end;
  -- New Profile Name.
  if (this:GetName() == OPTIONS_FRAME_NAME .. "Tab1FrameNewProfileNameEditbox") then
   local createProfileButton = getglobal(OPTIONS_FRAME_NAME .. "Tab1FrameCreateProfileButton");
@@ -1878,7 +1892,7 @@ function MikSBTOpt.PopulateIncomingEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab2FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = #MikSBTOpt.INCOMING_EVENTS;
+ local totalItems = #MikSBTOpt.INCOMING_EVENTS;
 
  -- Get the incoming event settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab2FrameEventsScrollFrame");
@@ -1893,7 +1907,7 @@ function MikSBTOpt.PopulateIncomingEventSettings()
   -- Make sure the event settings object exists.
   if (objEventSettings) then
    -- Check if there is not event settings data for the event settings slot.
-   if (i > totalItems) then
+   if (i + skipCount > totalItems) then
     -- Hide the event settings.
     objEventSettings:Hide();
 
@@ -1956,7 +1970,7 @@ function MikSBTOpt.PopulateOutgoingEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab3FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = #MikSBTOpt.OUTGOING_EVENTS;
+ local totalItems = #MikSBTOpt.OUTGOING_EVENTS;
 
  -- Get the outgoing event settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab3FrameEventsScrollFrame");
@@ -1971,7 +1985,7 @@ function MikSBTOpt.PopulateOutgoingEventSettings()
   -- Make sure the event settings object exists.
   if (objEventSettings) then
    -- Check if there is not event settings data for the event settings slot.
-   if (i > totalItems) then
+   if (i + skipCount > totalItems) then
     -- Hide the event settings.
     objEventSettings:Hide();
 
@@ -2034,7 +2048,7 @@ function MikSBTOpt.PopulateNotificationEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab4FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = #MikSBTOpt.NOTIFICATION_EVENTS;
+ local totalItems = #MikSBTOpt.NOTIFICATION_EVENTS;
 
  -- Get the notification event settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab4FrameEventsScrollFrame");
@@ -2049,7 +2063,7 @@ function MikSBTOpt.PopulateNotificationEventSettings()
   -- Make sure the event settings object exists.
   if (objEventSettings) then
    -- Check if there is not event settings data for the event settings slot.
-   if (i > totalItems) then
+   if (i + skipCount > totalItems) then
     -- Hide the event settings.
     objEventSettings:Hide();
 
@@ -2115,7 +2129,7 @@ function MikSBTOpt.PopulateTriggerEventSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab5FrameMessageEditbox");
 
  -- Get the total number of events.
- totalItems = MikSBTOpt.CountTriggers();
+ local totalItems = MikSBTOpt.CountTriggers();
 
  -- Get the trigger settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab5FrameTriggersScrollFrame");
@@ -2130,7 +2144,7 @@ function MikSBTOpt.PopulateTriggerEventSettings()
   -- Make sure the trigger settings object exists.
   if (objTriggerEventSettings) then
    -- Check if there is not trigger settings data for the trigger settings slot.
-   if (i > totalItems) then
+   if (i + skipCount > totalItems) then
     -- Hide the trigger settings.
     objTriggerEventSettings:Hide();
 
@@ -2195,7 +2209,7 @@ function MikSBTOpt.PopulateSuppressionSettings()
  MikSBTOpt.HideMessageEditbox(OPTIONS_FRAME_NAME .. "Tab6FrameMessageEditbox");
 
  -- Get the total number of suppressions.
- totalItems = MikSBTOpt.CountSuppressions();
+ local totalItems = MikSBTOpt.CountSuppressions();
 
  -- Get the trigger settings scroll frame and its offset.
  local objFrame = getglobal(OPTIONS_FRAME_NAME .. "Tab6FrameSuppressionsScrollFrame");
@@ -2209,7 +2223,7 @@ function MikSBTOpt.PopulateSuppressionSettings()
   -- Make sure the suppression settings object exists.
   if (objSuppressionItemSettings) then
    -- Check if there is not suppression settings data for the suppression settings slot.
-   if (i > totalItems) then
+   if (i + skipCount > totalItems) then
     -- Hide the suppression settings.
     objSuppressionItemSettings:Hide();
 
@@ -2450,6 +2464,7 @@ end
 -- Show master font settings.
 -- **********************************************************************************
 function MikSBTOpt.ShowMasterFontSettings()
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontOutlineDropdown"):Show();
  -- Show the crit font settings controls.
  MikSBTOpt.ShowCritFontControls();
 
@@ -2542,6 +2557,7 @@ end
 -- Show scroll area font settings .
 -- **********************************************************************************
 function MikSBTOpt.ShowScrollAreaFontSettings(scrollArea)
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontOutlineDropdown"):Show();
  -- Get the font settings frame.
  local fontSettingsFrame = getglobal(FONT_SETTINGS_FRAME_NAME);
 
@@ -2645,6 +2661,7 @@ end
 -- Show event font settings.
 -- **********************************************************************************
 function MikSBTOpt.ShowEventFontSettings(scrollArea, eventType)
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontOutlineDropdown"):Show();
  -- Get the inherited font index.
  local inheritedFontIndex = MikSBT.GetOptionFromVarPath("DisplaySettings." .. scrollArea .. ".FontSettings.Normal.FontIndex");
  if (inheritedFontIndex == 0) then
@@ -2800,6 +2817,7 @@ end
 -- Show trigger font settings.
 -- **********************************************************************************
 function MikSBTOpt.ShowTriggerFontSettings(triggerKey)
+ getglobal(FONT_SETTINGS_FRAME_NAME .. "FontOutlineDropdown"):Show();
  -- Get the inherited font index.
  local inheritedFontIndex = MikSBT.GetOptionFromVarPath("DisplaySettings.Notification.FontSettings.Normal.FontIndex");
  if (inheritedFontIndex == 0) then
@@ -3294,11 +3312,14 @@ end
 -- Called the save button on the scroll area mover is clicked.
 -- **********************************************************************************
 function MikSBTOpt.ScrollAreaMoverSaveOnClick()
+ local frame = getglobal(SCROLL_AREA_MOVER_CONTROL_FRAME_NAME);
+ frame.MSBTClosing = true;
  -- Save the current settings for all the scroll areas.
  MikSBTOpt.SaveScrollAreaSettings("MSBTCurrentSettings");
 
  -- Show the options frame and hide the scroll area mover frames.
  MikSBTOpt.HideScrollAreaMoverFrames();
+ frame.MSBTClosing = nil;
 end
 
 
@@ -3306,11 +3327,14 @@ end
 -- Cancels the changes made to the scroll area mover.
 -- **********************************************************************************
 function MikSBTOpt.ScrollAreaMoverCancelOnClick()
+ local frame = getglobal(SCROLL_AREA_MOVER_CONTROL_FRAME_NAME);
+ frame.MSBTClosing = true;
  -- Save the original settings for all the scroll areas.
  MikSBTOpt.SaveScrollAreaSettings("MSBTOriginalSettings");
 
  -- Show the options frame and hide the scroll area mover frames.
  MikSBTOpt.HideScrollAreaMoverFrames();
+ frame.MSBTClosing = nil;
 end
 
 
@@ -3516,7 +3540,7 @@ function MikSBTOpt.SetupVariableTriggerControls(triggerKey, showSearch)
    end
 
    -- Loop through all of the trigger events for the trigger.
-   for  _, triggerEvent in triggerData.TriggerSettings.TriggerEvents do
+   for _, triggerEvent in pairs(triggerData.TriggerSettings.TriggerEvents or {}) do
     triggerFrame.SelectedTriggerEvents[triggerEvent] = true;
    end
 
@@ -3641,9 +3665,7 @@ function MikSBTOpt.SaveTriggerConfig()
 
   -- Save the Icon Name
   local texture = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "IconNameEditbox"):GetText();
-   if (texture) and (texture ~= "") then
-    triggerData.Texture = texture;
-   end
+   triggerData.Texture = texture ~= "" and texture or nil;
   
   -- Check if the trigger type is search pattern.
   if (triggerData.TriggerSettings.TriggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
@@ -3829,4 +3851,48 @@ function MikSBTOpt.PopulateProfileOptions()
 
  -- Populate the suppression settings.
  MikSBTOpt.PopulateSuppressionSettings();
+end
+
+-- Settings surfaces only: combat frames and other addons keep their own styling.
+function MikSBTOpt.FitDialog(frame)
+ frame:SetScale(math.min(1, (UIParent:GetWidth()-24)/frame:GetWidth(), (UIParent:GetHeight()-24)/frame:GetHeight()));
+ frame:SetClampedToScreen(true);
+end
+
+function MikSBTOpt.MoverOnHide()
+ local frame = getglobal(SCROLL_AREA_MOVER_CONTROL_FRAME_NAME);
+ frame:StopMovingOrSizing();
+ for _, name in ipairs({SCROLL_AREA_MOVER_INCOMING_FRAME_NAME, SCROLL_AREA_MOVER_OUTGOING_FRAME_NAME, SCROLL_AREA_MOVER_NOTIFICATION_FRAME_NAME}) do
+  getglobal(name):StopMovingOrSizing();
+ end
+ if not frame.MSBTClosing and frame.MSBTOriginalSettings then MikSBTOpt.ScrollAreaMoverCancelOnClick() end;
+end
+
+function MikSBTOpt.ApplyTheme()
+ local function Style(frame)
+  local name = frame:GetName() or "";
+  for _, region in ipairs({frame:GetRegions()}) do
+   if region:GetObjectType() == "FontString" and not string.find(name, "Preview") then
+    region:SetTextColor(0.94, 0.91, 0.98);
+   end
+  end
+  if frame:GetObjectType() == "CheckButton" then
+   local mark = frame:GetCheckedTexture();
+   if mark then mark:SetVertexColor(0.76, 0.61, 1) end
+  end
+  for _, child in ipairs({frame:GetChildren()}) do Style(child) end;
+ end
+ for _, name in ipairs({OPTIONS_FRAME_NAME, FONT_SETTINGS_FRAME_NAME, TRIGGER_CONFIGURATION_FRAME_NAME, SCROLL_AREA_MOVER_CONTROL_FRAME_NAME}) do
+  local frame = getglobal(name);
+  if name == OPTIONS_FRAME_NAME then
+   for _, region in ipairs({frame:GetRegions()}) do
+    if region:GetObjectType() == "Texture" then region:Hide() end;
+   end
+  end
+  frame:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Buttons\\WHITE8X8", tile=false, edgeSize=1, insets={left=1,right=1,top=1,bottom=1}});
+  frame:SetBackdropColor(0.09, 0.07, 0.12, 0.98);
+  frame:SetBackdropBorderColor(0.48, 0.38, 0.60, 1);
+  frame:SetClampedToScreen(true);
+  Style(frame);
+ end
 end

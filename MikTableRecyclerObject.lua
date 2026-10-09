@@ -2,7 +2,7 @@
 -- Title: Mik's Table Recyler Object
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
--- Built natively for ClassicAPI v1.15.15+, SuperWoW 2.2+, NamPower 4.6.2+, UnitXP SP3
+-- Built natively for ClassicAPI v1.15.15+, SuperWoW 2.2+, NamPower 4.6.2+
 -- Credits:
 --  Thanks to tekkub, the author of compostLib.  I adapted much of his code for
 --  this object.
@@ -55,7 +55,8 @@ function MikTRO:NewRecyclerObject(maxEntries)
 
  -- Create a table to hold overflow entries.
  recyclerObject.OverflowCache = {};
- setmetatable(recyclerObject.OverflowCache, {__mode = "v"});
+ setmetatable(recyclerObject.OverflowCache, {__mode = "k"});
+ recyclerObject.CachedTables = setmetatable({}, {__mode = "k"});
 
  -- Set the meta table for the cache object.
  setmetatable(recyclerObject, self);
@@ -74,12 +75,14 @@ function MikTRO:AcquireTable()
   local t = self.PrimaryCache[self.PrimaryCacheSize];
   self.PrimaryCache[self.PrimaryCacheSize] = nil;
   self.PrimaryCacheSize = self.PrimaryCacheSize - 1;
+  self.CachedTables[t] = nil;
   return t;
 
  elseif (next(self.OverflowCache) ~= nil) then
   self.NumRecycled = self.NumRecycled + 1;
-  local k, t = next(self.OverflowCache);
-  self.OverflowCache[k] = nil;
+  local t = next(self.OverflowCache);
+  self.OverflowCache[t] = nil;
+  self.CachedTables[t] = nil;
   return t;
 
  else
@@ -93,16 +96,17 @@ end
 -- Reclaims a table into the cache.
 -- **********************************************************************************
 function MikTRO:ReclaimTable(t)
- if (type(t) ~= "table") then
+ if (type(t) ~= "table" or self.CachedTables[t]) then
   return;
  end
+ self.CachedTables[t] = true;
 
  -- Erase the passed table.
  self:EraseTable(t);
 
  -- Check if the primary cache is already full.
  if (self.PrimaryCacheSize >= self.MaxEntries) then
-  tinsert(self.OverflowCache, t);
+  self.OverflowCache[t] = true;
  else
   self.PrimaryCacheSize = self.PrimaryCacheSize + 1;
   self.PrimaryCache[self.PrimaryCacheSize] = t;

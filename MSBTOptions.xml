@@ -130,12 +130,15 @@
    </OnEnter>
    <OnLeave>GameTooltip:Hide();</OnLeave>
    <OnTextChanged>MikSBTOpt.EditboxOnTextChanged();</OnTextChanged>
+   <OnEscapePressed>this:ClearFocus();</OnEscapePressed>
+   <OnEnterPressed>this:ClearFocus();</OnEnterPressed>
+   <OnHide>this:ClearFocus();</OnHide>
   </Scripts>
  </EditBox>
 
 
  <!-- Color Swatch Template -->
- <Button name="MSBTColorswatchTemplate" hidden="false" virtual="true">
+ <Button name="MSBTColorSwatchTemplate" hidden="false" virtual="true">
   <Size>
    <AbsDimension x="16" y="16" />
   </Size>
@@ -1678,6 +1681,7 @@
   </Frames>
   <Scripts>
    <OnLoad>this:SetBackdropColor(0.05, 0.05, 0.05, 1.0);</OnLoad>
+   <OnShow>MikSBTOpt.FitDialog(this);</OnShow>
   </Scripts>
  </Frame>
 
@@ -1870,6 +1874,8 @@
   </Frames>
   <Scripts>
    <OnLoad>this:SetBackdropColor(0.05, 0.05, 0.05, 1.0);</OnLoad>
+   <OnShow>MikSBTOpt.FitDialog(this);</OnShow>
+  <OnHide>MikSBTOpt.MoverOnHide();</OnHide>
   </Scripts>
  </Frame>
 
@@ -2321,6 +2327,7 @@
   </Frames>
   <Scripts>
    <OnLoad>this:SetBackdropColor(0.05, 0.05, 0.05, 1.0);</OnLoad>
+   <OnShow>MikSBTOpt.FitDialog(this);</OnShow>
   </Scripts>
  </Frame>
 

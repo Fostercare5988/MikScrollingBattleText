@@ -52,10 +52,21 @@ local ICON_CACHE = {
 	["flametongue attack"] = "Interface\\Icons\\Spell_Nature_GuardianWard",
 	["stratholme holy water"] = "Interface\\Icons\\Inv_Potion_75",
 }
-local NO_ICON_CACHE = {}
 
 -- Cache for spellId-based icon lookups (bypasses Babble-Spell and tooltip scanning).
 local spellIdIconCache = {}
+local iconCacheCount = 2;
+local function CacheIcon(cache, key, texture)
+ if iconCacheCount >= 256 then
+  table.wipe(spellIdIconCache);
+  table.wipe(ICON_CACHE);
+  ICON_CACHE["flametongue attack"] = "Interface\\Icons\\Spell_Nature_GuardianWard";
+  ICON_CACHE["stratholme holy water"] = "Interface\\Icons\\Inv_Potion_75";
+  iconCacheCount = 2;
+ end
+ if not cache[key] then iconCacheCount = iconCacheCount + 1 end;
+ cache[key] = texture;
+end
 
 -- Damage type → color prefix lookup (lazily initialized after globals are available).
 local damageTypeColors
@@ -222,6 +233,8 @@ do
  dmgEventStr[3]["DOT"] = "MSBT_EVENTTYPE_OUTGOING_SPELL_DOT";
  dmgEventStrSpell[3]["REFLECT"] = "MSBT_EVENTTYPE_OUTGOING_SPELL_REFLECT";
  dmgEventStr[3]["REFLECT"] = "MSBT_EVENTTYPE_OUTGOING_SPELL_REFLECT";
+ healEventStr[3]["HEAL"] = "MSBT_EVENTTYPE_OUTGOING_HEAL";
+ healEventStr[3]["HOT"] = "MSBT_EVENTTYPE_OUTGOING_HOT";
 
  for notifType, suffix in pairs(NOTIFICATION_SUFFIX) do
   notifEventStr[notifType] = "MSBT_EVENTTYPE_NOTIFICATION_" .. suffix;
@@ -247,8 +260,8 @@ local scrollAreas = {};
 -- Holds arrays of unmerged events, merged events to be displayed and the time since
 -- the last merge for incoming and outgoing events.
 local animationMergeData = {
- ["Incoming"]	= {["TimeSinceMerge"] = 0, TimerPending = false, UnmergedEvents={}, MergedEvents={}},
- ["Outgoing"]	= {["TimeSinceMerge"] = 0, TimerPending = false, UnmergedEvents={}, MergedEvents={}},
+ ["Incoming"]	= {["TimeSinceMerge"] = 0, TimerPending = false, Generation=0, UnmergedEvents={}, SpareEvents={}, MergedEvents={}},
+ ["Outgoing"]	= {["TimeSinceMerge"] = 0, TimerPending = false, Generation=0, UnmergedEvents={}, SpareEvents={}, MergedEvents={}},
 };
 
 -- Holds whether or not a merge is still being processed.
@@ -335,13 +348,14 @@ function MikSBT.OnEvent()
    MikSBT.RegisterEvents();
 
    -- Initialize the mod.
+   this:UnregisterEvent("ADDON_LOADED");
    MikSBT.Init();
   end
  end
  
  if (event == "PLAYER_ENTERING_WORLD") then
 	this:UnregisterEvent("ADDON_LOADED");
-	this:UnregisterEvent("PLAYER_ENTERING_WORLD");
+	if MikSBT.CurrentProfile then MikSBT.ClearPendingEvents() end;
  end
 end
 
@@ -518,6 +532,7 @@ end
 -- Receive combat events from Mik's combat event helper.
 -- **********************************************************************************
 function MikSBT.CombatEventsHandler(combatEvent)
+ if not MikSBT.CurrentProfile or (MikSBT_Save and MikSBT_Save.UserDisabled) then return end;
  -- Get a recycled table from the events recycler object.
  local animationEvent = eventsRecycler:AcquireTable();
 
@@ -581,7 +596,7 @@ function MikSBT.CombatEventsHandler(combatEvent)
  end
 
  -- Check if the event is a crit and set the crit field appropriately
- if (combatEvent.HitType == MikCEH.HITTYPE_CRIT or combatEvent.HealType == MikCEH.HEALTYPE_CRIT) then
+ if (combatEvent.IsCrit or combatEvent.HitType == MikCEH.HITTYPE_CRIT or combatEvent.HealType == MikCEH.HEALTYPE_CRIT) then
   animationEvent.IsCrit = true;
  end
 
@@ -593,7 +608,10 @@ function MikSBT.CombatEventsHandler(combatEvent)
  -- end
  animationEvent.EffectName = combatEvent.EffectName;
  animationEvent.Name = combatEvent.Name;
+ animationEvent.UnitGUID = combatEvent.UnitGUID;
  animationEvent.SpellId = combatEvent.SpellId;
+ animationEvent.IsSpellManaGain = combatEvent.IsSpellManaGain;
+ animationEvent.NoSpellIcon = combatEvent.NoSpellIcon;
 
  -- Check if there is a damage type and get the appropriate string.
  if (combatEvent.DamageType ~= nil) then
@@ -659,7 +677,7 @@ function MikSBT.CombatEventsHandler(combatEvent)
   MikSBT.DispatchAnimationEvent(animationEvent);
  else
   -- Print an error message and reclaim the animation event table to the table recycler.
-  MikSBT.Print("No profile data found for " .. eventTypeString, 1, 0, 0)
+  MikSBT.Print("No profile data found for " .. tostring(eventTypeString), 1, 0, 0)
   eventsRecycler:ReclaimTable(animationEvent);
  end
 end
@@ -670,6 +688,8 @@ end
 -- Receive trigger events from Mik's trigger helper.
 -- **********************************************************************************
 function MikSBT.TriggerHandler(triggerEvent)
+ if not MikSBT.CurrentProfile or (MikSBT_Save and MikSBT_Save.UserDisabled) or
+    not MikSBT.CurrentProfile.Triggers[triggerEvent.TriggerKey] then return end;
  -- Get a recycled table from the events recycler object.
  local animationEvent = eventsRecycler:AcquireTable();
 
@@ -757,12 +777,15 @@ function MikSBT.MergeEvents(mergeData, unmergedEvents, numEvents)
  
      -- Check if the event types match and the effect names are the same.
     if ((unmergedEvents[x].EventType == animationEvent.EventType) and
-        (unmergedEvents[x].EffectName == animationEvent.EffectName)) then
+        (unmergedEvents[x].EffectName == animationEvent.EffectName) and
+        (unmergedEvents[x].SpellId == animationEvent.SpellId)) then
  
      -- Check if there is no effect name
      if (unmergedEvents[x].EffectName == nil) then
       -- Check if the affected unit name is the same.
-      if ((unmergedEvents[x].Name == animationEvent.Name) and unmergedEvents[x].Name ~= nil) then
+      if ((unmergedEvents[x].UnitGUID and unmergedEvents[x].UnitGUID == animationEvent.UnitGUID) or
+          (not unmergedEvents[x].UnitGUID and not animationEvent.UnitGUID and
+           unmergedEvents[x].Name == animationEvent.Name and unmergedEvents[x].Name ~= nil)) then
        -- Do Merge.
        eventMerged = true;
        unmergedEventMatched = true;
@@ -771,8 +794,10 @@ function MikSBT.MergeEvents(mergeData, unmergedEvents, numEvents)
      -- There is an effect name.
      else
       -- Check if there is a name and replace it with the multiple targets string.
-      if (animationEvent.Name ~= nil) then
+      if animationEvent.UnitGUID ~= unmergedEvents[x].UnitGUID or
+         animationEvent.Name ~= unmergedEvents[x].Name then
        animationEvent.Name = MikSBT.MSG_MULTIPLE_TARGETS;
+       animationEvent.UnitGUID = nil;
       end
  
       -- Do Merge.
@@ -815,6 +840,7 @@ function MikSBT.MergeEvents(mergeData, unmergedEvents, numEvents)
  
      -- Make sure the merged event is not flagged as a crit.
      animationEvent.IsCrit = false;
+     break;
     end -- Do Merge.
    end -- Loop through all merged events.
  
@@ -1101,17 +1127,21 @@ function MikSBT.FormatEventText(animationEvent)
  end
 
  -- Substitute enemy/player names.
- local unitID, unitName = MikCEH.GetUnitIDFromName(animationEvent.Name)
- animationEvent._unitID = unitID
- animationEvent._unitName = unitName
- if unitName and unitID and not UnitIsUnit(unitID, "player") then
-  local formattedName = unitName
-  local _, class = UnitClass(unitID)
-  local colorPrefix = class and CLASS_COLORS[class]
-  if colorPrefix then
-   formattedName = colorPrefix .. unitName .. "|h|r"
+ local unitID, unitName;
+ if animationEvent.UnitGUID then
+  if UnitExists(animationEvent.UnitGUID) then unitID = animationEvent.UnitGUID end;
+  unitName = animationEvent.Name;
+ else
+  unitName = animationEvent.Name;
+ end
+ if unitName and (not unitID or not UnitIsUnit(unitID, "player")) then
+  local formattedName = unitName;
+  if unitID then
+   local _, class = UnitClass(unitID);
+   local colorPrefix = class and CLASS_COLORS[class];
+   if colorPrefix then formattedName = colorPrefix .. unitName .. "|h|r" end;
   end
-  outputString = string_gsub(outputString, "%%n", formattedName);
+  outputString = string_gsub(outputString, "%%n", function() return formattedName end);
  else
   outputString = string_gsub(outputString, "%(%%n%)", "");
   outputString = string_gsub(outputString, "%%n", "");
@@ -1157,7 +1187,8 @@ function MikSBT.FormatTriggerText(animationEvent, triggerEvent)
 
  -- Loop through all of the captures in the trigger event.
  for i = 1, triggerEvent.NumCaptures do
-  outputString = string_gsub(outputString , "%%" .. i, triggerEvent["CapturedData" .. i]);
+  local value = triggerEvent["CapturedData" .. i];
+  if value ~= nil then outputString = string_gsub(outputString, "%%" .. i, function() return tostring(value) end) end;
  end
 
  -- Set the event's output text.
@@ -1190,36 +1221,19 @@ end
 -- Updates profiles created with older versions.
 -- **********************************************************************************
 function MikSBT.UpdateProfiles()
- -- Loop through all the profiles.
- for profileName, profile in pairs(MikSBT_Save.Profiles or {}) do
-  if type(profile) == "table" then
-   if not profile.CreationVersion then
-    MikSBT.ResetProfile(profileName)
-   else
-    -- Backfill any missing default EventSettings, Triggers, Suppressions, and FontSettings
-    if MikSBT.DEFAULT_CONFIG then
-     if not profile.EventSettings then profile.EventSettings = {} end
-     for evtName, defaultSetting in pairs(MikSBT.DEFAULT_CONFIG.EventSettings or {}) do
-      if not profile.EventSettings[evtName] then
-       profile.EventSettings[evtName] = MikSBT.CopyTable(defaultSetting)
-      end
-     end
-     if not profile.Triggers then
-      profile.Triggers = MikSBT.CopyTable(MikSBT.DEFAULT_CONFIG.Triggers or {})
-     end
-     if not profile.Suppressions then
-      profile.Suppressions = MikSBT.CopyTable(MikSBT.DEFAULT_CONFIG.Suppressions or {})
-     end
-     if not profile.BlizzardFontSettings then
-      profile.BlizzardFontSettings = MikSBT.CopyTable(MikSBT.DEFAULT_CONFIG.BlizzardFontSettings or {})
-     end
-    end
-
-    if profile.ShowVigorGains == nil then profile.ShowVigorGains = true end
-    if profile.LowHealthSound == nil then profile.LowHealthSound = true end
-    if profile.LowManaSound == nil then profile.LowManaSound = true end
-    profile.CreationVersion = 6.1
+ local function FillMissing(target, defaults)
+  for key, value in pairs(defaults) do
+   if target[key] == nil then
+    target[key] = type(value) == "table" and MikSBT.CopyTable(value) or value;
+   elseif type(target[key]) == "table" and type(value) == "table" and
+          key ~= "Triggers" and key ~= "Suppressions" then
+    FillMissing(target[key], value);
    end
+  end
+ end
+ for _, profile in pairs(MikSBT_Save.Profiles or {}) do
+  if type(profile) == "table" then
+   FillMissing(profile, MikSBT.DEFAULT_CONFIG);
   end
  end
 end
@@ -1245,6 +1259,8 @@ function MikSBT.ResetProfile(profileName, showOutput)
 
  -- Check if the profile exists.
  if (profileExists) then
+  if profileName == MikSBT_Save.CurrentProfile then MikSBT.ClearPendingEvents() end;
+
   -- Reset the profile.
   MikSBT_Save.Profiles[profileName] = MikSBT.CopyTable(MikSBT.DEFAULT_CONFIG);
 
@@ -1294,6 +1310,8 @@ function MikSBT.SelectProfile(profileName)
 
  -- Check if the profile exists.
  if (profileExists) then
+  MikSBT.ClearPendingEvents();
+
   -- Set the current profile name to the one being selected.
   MikSBT_Save.CurrentProfile = profileName;
 
@@ -1337,6 +1355,8 @@ function MikSBT.CreateProfile(profileName)
   -- Create an array for the profile.
   MikSBT_Save.Profiles[profileName] = {};
   
+  if profileName == MikSBT_Save.CurrentProfile then MikSBT.ClearPendingEvents() end;
+
   -- Reset the profile.
   MikSBT.ResetProfile(profileName);
  end
@@ -1381,6 +1401,7 @@ function MikSBT.SetOptionUserDisabled(isDisabled)
 
  -- Check if the mod is being set to disabled.
  if (isDisabled) then
+  MikSBT.ClearPendingEvents();
   -- Unregister all events.
   MikSBT.UnregisterEvents();
   MikCEH.UnregisterEvents();
@@ -1388,10 +1409,7 @@ function MikSBT.SetOptionUserDisabled(isDisabled)
   -- Turn on the game's display of outgoing damage.
   SetCVar("CombatDamage", 1);
 
-  -- Turn on Blizzard's default combat text.
-  if (SHOW_COMBAT_TEXT ~= nil) then
-   SHOW_COMBAT_TEXT = 1;
-  end
+  -- Blizzard/UnitXP floating text keeps its independently chosen enabled state.
  else
   -- Reregister events.
   MikSBT.RegisterEvents();
@@ -1400,10 +1418,7 @@ function MikSBT.SetOptionUserDisabled(isDisabled)
   -- Turn the game damage display on or off depending on the user setting.
   MikSBT.SetOptionShowGameDamage(MikSBT.CurrentProfile.ShowGameDamage);
   
-  -- Turn off Blizzard's default combat text.
-  if (SHOW_COMBAT_TEXT ~= nil) then
-   SHOW_COMBAT_TEXT = 0;
-  end
+  -- Blizzard/UnitXP floating text keeps its independently chosen enabled state.
 
   -- Make sure that periodic spell effects are reported.
   SetCVar("CombatLogPeriodicSpells", 1);
@@ -1500,47 +1515,59 @@ end
 -- **********************************************************************************
 -- Asynchronous merge workers using C_Timer.After to eradicate per-frame polling.
 -- **********************************************************************************
-local ProcessIncomingMerge, ProcessOutgoingMerge;
+local ScheduleMerge;
+
+function MikSBT.ClearPendingEvents()
+ for _, data in pairs(animationMergeData) do
+  data.Generation = data.Generation + 1;
+  if data.Timer then data.Timer:Cancel(); data.Timer = nil end;
+  data.TimerPending = false;
+  for _, events in ipairs({data.UnmergedEvents, data.SpareEvents, data.MergedEvents}) do
+   for i, item in pairs(events) do eventsRecycler:ReclaimTable(item); events[i] = nil end
+  end
+ end
+ for _, area in pairs(scrollAreas) do
+  for _, info in ipairs(area.AnimationDisplayArray) do
+   info.IsActive = false;
+   info.timeLastJiggled, info.originalPositionX, info.originalPositionY = nil, nil, nil;
+   info.FontObject:SetAlpha(0);
+   if info.Texture then info.Texture:SetAlpha(0) end
+  end
+  getglobal(area.AssociatedFrame):Hide();
+ end
+end
 
 local function ProcessMerge(mergeData)
- if (not mergeData or stillMerging) then return end
+ if not mergeData or stillMerging then return end;
  stillMerging = true;
-
+ local generation = mergeData.Generation;
  local unmerged = mergeData.UnmergedEvents;
- mergeData.UnmergedEvents = {};
+ mergeData.UnmergedEvents = mergeData.SpareEvents;
+ mergeData.SpareEvents = unmerged;
  local numEvents = #unmerged;
-
- if (numEvents > 0) then
+ if numEvents > 0 then
   MikSBT.MergeEvents(mergeData, unmerged, numEvents);
-
-  for _, animationEvent in ipairs(mergeData.MergedEvents) do
-   MikSBT.AddAnimation(animationEvent);
+  for i, animationEvent in ipairs(mergeData.MergedEvents) do
+   mergeData.MergedEvents[i] = nil;
+   if generation == mergeData.Generation then MikSBT.AddAnimation(animationEvent);
+   else eventsRecycler:ReclaimTable(animationEvent); end
   end
-
-  table.wipe(mergeData.MergedEvents);
  end
-
  stillMerging = false;
  mergeData.TimerPending = false;
-
- if (#mergeData.UnmergedEvents > 0) then
-  mergeData.TimerPending = true;
-  if (mergeData == animationMergeData.Incoming) then
-   C_Timer.After(MERGE_DELAY_TIME, ProcessIncomingMerge);
-  else
-   C_Timer.After(MERGE_DELAY_TIME, ProcessOutgoingMerge);
-  end
- end
+ if #mergeData.UnmergedEvents > 0 then ScheduleMerge(mergeData) end;
 end
 
-ProcessIncomingMerge = function()
- ProcessMerge(animationMergeData.Incoming);
+ScheduleMerge = function(data)
+ if data.TimerPending then return end;
+ data.TimerPending = true;
+ local generation = data.Generation;
+ data.Timer = C_Timer.NewTimer(MERGE_DELAY_TIME, function()
+  if data.Generation ~= generation then return end;
+  data.Timer = nil;
+  ProcessMerge(data);
+ end);
 end
-
-ProcessOutgoingMerge = function()
- ProcessMerge(animationMergeData.Outgoing);
-end
-
 
 -- **********************************************************************************
 -- Dispatches an animation event to the animation system or the unmerged events queue.
@@ -1565,21 +1592,17 @@ function MikSBT.DispatchAnimationEvent(animationEvent)
   -- for potential merging.
   if (animationEvent.ScrollArea == scrollAreas.Incoming) then
    table_insert(animationMergeData.Incoming.UnmergedEvents, animationEvent);
-   if (not animationMergeData.Incoming.TimerPending) then
-    animationMergeData.Incoming.TimerPending = true;
-    C_Timer.After(MERGE_DELAY_TIME, ProcessIncomingMerge);
-   end
+   ScheduleMerge(animationMergeData.Incoming);
   elseif (animationEvent.ScrollArea == scrollAreas.Outgoing) then
    table_insert(animationMergeData.Outgoing.UnmergedEvents, animationEvent);
-   if (not animationMergeData.Outgoing.TimerPending) then
-    animationMergeData.Outgoing.TimerPending = true;
-    C_Timer.After(MERGE_DELAY_TIME, ProcessOutgoingMerge);
-   end
+   ScheduleMerge(animationMergeData.Outgoing);
 
   -- Add the event to the animation system.
   else
    MikSBT.AddAnimation(animationEvent);
   end
+ else
+  eventsRecycler:ReclaimTable(animationEvent);
  end
 end
 
@@ -1588,6 +1611,12 @@ end
 -- Add the event to the appropriate scroll area's animation display array.
 -- **********************************************************************************
 
+function MikSBT.PatternMatches(text, pattern)
+ if type(text) ~= "string" or type(pattern) ~= "string" then return false end;
+ local ok, first = pcall(string_find, text, pattern);
+ return ok and first ~= nil;
+end
+
 function MikSBT.AddAnimation(animationEvent)
  -- Format the animation event's output text.
  MikSBT.FormatEventText(animationEvent);
@@ -1595,18 +1624,18 @@ function MikSBT.AddAnimation(animationEvent)
  -- Loop through all of the suppression entries and look for a match.
  for _, suppressionSettings in pairs(MikSBT.CurrentProfile.Suppressions or {}) do
   -- Check if the suppression's search pattern is a match.
-  if (suppressionSettings.Enabled and (string_find(animationEvent.Text, suppressionSettings.SearchPattern))) then
+  if (suppressionSettings.Enabled and (MikSBT.PatternMatches(animationEvent.Text, suppressionSettings.SearchPattern))) then
    -- Reclaim the animation event table to the events recycler and leave the function.
    eventsRecycler:ReclaimTable(animationEvent);
    return;
-  elseif (suppressionSettings.Enabled and animationEvent.EffectName and string_find(animationEvent.EffectName, suppressionSettings.SearchPattern)) then
+  elseif (suppressionSettings.Enabled and animationEvent.EffectName and MikSBT.PatternMatches(animationEvent.EffectName, suppressionSettings.SearchPattern)) then
    -- Reclaim the animation event table to the events recycler and leave the function.
    eventsRecycler:ReclaimTable(animationEvent);
    return;
   end
  end
  
- if animationEvent.EventType == "MSBT_EVENTTYPE_NOTIFICATION_POWER_GAIN" and animationEvent.EffectName ~= 0 and MikSBT.CurrentProfile.ShowAllManaGains then
+ if animationEvent.IsSpellManaGain and MikSBT.CurrentProfile.ShowAllManaGains then
 	eventsRecycler:ReclaimTable(animationEvent);
 	return
  end
@@ -1621,6 +1650,8 @@ function MikSBT.AddAnimation(animationEvent)
 
  -- Get the next available animation display info object for the scroll area.
  local animDisplayInfo = MikSBT.GetNextAnimationDisplayInfo(animationEvent);
+ animDisplayInfo.timeLastJiggled, animDisplayInfo.originalPositionX, animDisplayInfo.originalPositionY = nil, nil, nil;
+ animDisplayInfo.DecalageX, animDisplayInfo.DecalageY, animDisplayInfo.DeltaTime = nil, nil, nil;
 
  -- Get the scroll function to use.
  animDisplayInfo.ScrollFunction = MikSBT.GetScrollFunction(animationEvent);
@@ -1718,35 +1749,35 @@ function MikSBT.AddAnimation(animationEvent)
 			texture = spellIdIconCache[sid]
 		elseif MikCEH.hasSuperWoW and SpellInfo then
 			local ok, _, _, tex = pcall(SpellInfo, sid)
-			if ok and tex then texture = tex; spellIdIconCache[sid] = tex end
+			if ok and tex then texture = tex; CacheIcon(spellIdIconCache, sid, tex) end
 		elseif MikCEH.hasNampower and GetSpellRecField and GetSpellIconTexture then
 			local ok, iconId = pcall(GetSpellRecField, sid, "spellIconID")
 			if ok and iconId then
 				local ok2, tex = pcall(GetSpellIconTexture, iconId)
-				if ok2 and tex then texture = tex; spellIdIconCache[sid] = tex end
+				if ok2 and tex then texture = tex; CacheIcon(spellIdIconCache, sid, tex) end
 			end
 		end
 	end
 
-	if not texture and animationEvent.EffectName then
+	if not texture and animationEvent.EffectName and not animationEvent.NoSpellIcon then
 		local name = string_gsub(animationEvent.EffectName, " %(%d+%)", "")
 		local lname = strlower(name)
 		local cached = ICON_CACHE[lname]
 		if cached then
 			texture = cached
-		elseif not NO_ICON_CACHE[lname] then
+		elseif not animationEvent.SpellId then
 			if MikCEH.hasNampower and GetSpellIdForName then
 				local ok, sid = pcall(GetSpellIdForName, name)
 				if ok and sid and sid ~= 0 then
 					if MikCEH.hasSuperWoW and SpellInfo then
 						local ok2, _, _, tex = pcall(SpellInfo, sid)
-						if ok2 and tex then texture = tex; ICON_CACHE[lname] = tex end
+						if ok2 and tex then texture = tex; CacheIcon(ICON_CACHE, lname, tex) end
 					end
 					if not texture and GetSpellRecField and GetSpellIconTexture then
 						local ok2, iconId = pcall(GetSpellRecField, sid, "spellIconID")
 						if ok2 and iconId then
 							local ok3, tex = pcall(GetSpellIconTexture, iconId)
-							if ok3 and tex then texture = tex; ICON_CACHE[lname] = tex end
+							if ok3 and tex then texture = tex; CacheIcon(ICON_CACHE, lname, tex) end
 						end
 					end
 				end
@@ -1755,12 +1786,10 @@ function MikSBT.AddAnimation(animationEvent)
 				local ok, _, _, _, _, _, _, _, _, tex = pcall(GetItemInfo, name)
 				if ok and tex then
 					texture = tex
-					ICON_CACHE[lname] = tex
+					CacheIcon(ICON_CACHE, lname, tex)
 				end
 			end
-			if not texture then
-				NO_ICON_CACHE[lname] = 1
-			end
+
 		end
 	end
 
@@ -2092,6 +2121,8 @@ function MikSBT.DoAnimation(animDisplayInfo, scrollArea)
   end
    return;
   elseif (elapsedTime <= (STICKY_DISPLAY_TIME + STICKY_FADE_IN_TIME)) then
+   animDisplayInfo.FontObject:SetAlpha(1);
+   if animDisplayInfo.Texture then animDisplayInfo.Texture:SetAlpha(1) end;
    animDisplayInfo.FontObject:SetTextHeight(animDisplayInfo.FontSize);
    if animDisplayInfo.Texture then
 	animDisplayInfo.Texture:SetWidth(animDisplayInfo.FontSize);
@@ -2521,6 +2552,7 @@ end
 -- This function is for easy displaying of messages from external sources.
 -- **********************************************************************************
 function MikSBT.DisplayMessage(message, displayType, isSticky, colorR, colorG, colorB, fontSize, fontIndex, outlineIndex, Texture)
+ if not MikSBT.CurrentProfile or (MikSBT_Save and MikSBT_Save.UserDisabled) then return end;
  -- Check if no message was passed and do nothing.
  if (message == nil) then
   return;
