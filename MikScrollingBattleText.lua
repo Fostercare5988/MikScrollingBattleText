@@ -1,15 +1,15 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Scrolling Battle Text (ClassicAPI v1.15.15+ & SuperWoW 2.2+ Stack)
+-- Title: Mik's Scrolling Battle Text (ClassicAPI v1.16.0+ & SuperWoW 2.2+ Stack)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.15.15+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11515
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.16.0+ & SuperWoW v2.2+)
+local MIN_CLASSIC_API = 11600
 if type(CLASSIC_API_VERSION) ~= "number" or not SUPERWOW_VERSION or
    CLASSIC_API_VERSION < MIN_CLASSIC_API then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.15.15+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.16.0+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
@@ -1431,14 +1431,19 @@ end
 -- **********************************************************************************
 function MikSBT.SetOptionShowGameDamage(showDamage)
  MikSBT.CurrentProfile.ShowGameDamage = showDamage;
+ MikSBT.ApplyGameDamageSetting();
+end
 
- -- Check if the game damage is being set to on.
- if (showDamage) then
-   -- Turn on the game damage display.
-   SetCVar("CombatDamage", 1);
+
+-- **********************************************************************************
+-- Apply the effective game damage CVar. A disabled MSBT always restores the
+-- game's own damage text; otherwise the profile preference decides.
+-- **********************************************************************************
+function MikSBT.ApplyGameDamageSetting()
+ if (MikSBT_Save.UserDisabled or MikSBT.CurrentProfile.ShowGameDamage) then
+  SetCVar("CombatDamage", 1);
  else
-   -- Turn off the game damage display.
-   SetCVar("CombatDamage", 0);
+  SetCVar("CombatDamage", 0);
  end
 end
 
@@ -2633,9 +2638,10 @@ function MikSBT.DisplayMessage(message, displayType, isSticky, colorR, colorG, c
  animationEvent.FontSize = fontSize;
  animationEvent.FontPath = fontPath;
  animationEvent.FontOutline = fontOutline;
- animationEvent.ColorR = colorR;
- animationEvent.ColorG = colorG;
- animationEvent.ColorB = colorB;
+ -- The public interface takes 0-255 channels; FontString:SetTextColor takes 0-1.
+ animationEvent.ColorR = colorR / 255;
+ animationEvent.ColorG = colorG / 255;
+ animationEvent.ColorB = colorB / 255;
  animationEvent.Texture = Texture;
 
 

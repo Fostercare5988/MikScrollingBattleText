@@ -6,7 +6,7 @@ heals, misses, absorbs, critical hits, resource gains and configurable alerts.
 ## Requirements
 
 - World of Warcraft 1.12.1 (build 5875).
-- ClassicAPI 1.15.15 or newer, SuperWoW 2.2, and NamPower 4.6.2 or newer.
+- ClassicAPI 1.16.0 or newer, SuperWoW 2.2, and NamPower 4.6.2 or newer.
 
 Use your client's configured launcher to load those DLLs. DLL changes require
 a complete client restart. UnitXP is not required by MSBT.

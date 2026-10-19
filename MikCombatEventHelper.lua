@@ -1,15 +1,15 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Combat Event Helper (ClassicAPI v1.15.15+ & SuperWoW 2.2+ Stack)
+-- Title: Mik's Combat Event Helper (ClassicAPI v1.16.0+ & SuperWoW 2.2+ Stack)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.15.15+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11515
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.16.0+ & SuperWoW v2.2+)
+local MIN_CLASSIC_API = 11600
 if type(CLASSIC_API_VERSION) ~= "number" or not SUPERWOW_VERSION or
    CLASSIC_API_VERSION < MIN_CLASSIC_API then
 	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.15.15+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
+		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.16.0+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
 	end
 	return
 end
@@ -608,9 +608,14 @@ nampowerHandlers["DEBUFF_ADDED_SELF"] = function()
  MikCEH.SendEvent(eventData)
 end
 
+-- NamPower aura state (arg7): 0 = added, 1 = removed, 2 = stack change.
+-- A *_REMOVED_* event with state 2 is a stack decrease; the aura is still active.
+local AURA_STATE_MODIFIED = 2
+
 nampowerHandlers["BUFF_REMOVED_SELF"] = function()
  local unitGuid = arg1
  local spellId = arg3
+ if tonumber(arg7) == AURA_STATE_MODIFIED then return end
  if not IsPlayerGUID(unitGuid) and not IsPetGUID(unitGuid) then return end
 
  local spellName = GetSpellNameFromId(spellId)
@@ -624,6 +629,7 @@ end
 nampowerHandlers["DEBUFF_REMOVED_SELF"] = function()
  local unitGuid = arg1
  local spellId = arg3
+ if tonumber(arg7) == AURA_STATE_MODIFIED then return end
  if not IsPlayerGUID(unitGuid) and not IsPetGUID(unitGuid) then return end
 
  local spellName = GetSpellNameFromId(spellId)
@@ -1219,6 +1225,12 @@ function MikCEH.UnregisterAllTriggers()
  MikCEH.EraseTable(petHealthTriggers);
  MikCEH.EraseTable(enemyHealthTriggers);
  MikCEH.EraseTable(friendlyHealthTriggers);
+end
+
+-- Start mana-gain observation from the current amount. Called when "Show All
+-- Mana Gains" is switched on, because observation stops while it is off.
+function MikCEH.ResetManaBaseline()
+ lastSelfManaAmount = UnitMana("player") or 0;
 end
 
 function MikCEH.ResetThresholdState()

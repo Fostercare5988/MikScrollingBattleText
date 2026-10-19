@@ -82,5 +82,5 @@ Commands: `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`, `/msbt stat
 `/msbt search CHAT_MSG` enables diagnostic event text; `/msbt search` stops it.
 Leave diagnostic output off during frame-pacing tests.
 
-Requirements remain ClassicAPI 1.15.15+, SuperWoW 2.2 and NamPower 4.6.2+.
+Requirements remain ClassicAPI 1.16.0+, SuperWoW 2.2 and NamPower 4.6.2+.
 UnitXP is not required for MSBT healing. DLL updates require a full restart. Use your configured client launcher.

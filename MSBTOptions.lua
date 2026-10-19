@@ -2,11 +2,11 @@
 -- Title: Mik's Scrolling Battle Text Options
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
--- Built natively for ClassicAPI v1.15.15+, SuperWoW 2.2+, NamPower 4.6.2+
+-- Built natively for ClassicAPI v1.16.0+, SuperWoW 2.2+, NamPower 4.6.2+
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.15.15+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11515
+-- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.16.0+ & SuperWoW v2.2+)
+local MIN_CLASSIC_API = 11600
 if type(CLASSIC_API_VERSION) ~= "number" or not SUPERWOW_VERSION or
    CLASSIC_API_VERSION < MIN_CLASSIC_API then
 	return
@@ -229,6 +229,9 @@ end
 -- Called when the options frame is hidden.
 -- **********************************************************************************
 function MikSBTOpt.OnHide()
+ -- Keep the chosen colour but close MSBT's picker with the settings window.
+ MikSBTOpt.RetireColorPicker(false);
+
  -- Holds whether or not to play a sound.
  local doPlaySound = true;
 
@@ -912,6 +915,11 @@ function MikSBTOpt.CheckboxOnClick()
    -- Set the associated variable in the current profile to the inherited value.
    MikSBT.SetOptionFromVarPath(this.associatedVarPath, false);
   end
+
+  -- Mana gains are not observed while hidden; start from the current amount.
+  if (this.associatedVarPath == "ShowAllManaGains" and this:GetChecked() == 1) then
+   MikCEH.ResetManaBaseline();
+  end
  end
 end
 
@@ -1234,6 +1242,7 @@ function MikSBTOpt.ButtonOnClick()
 
  -- Load profile button.
  elseif (this:GetName() == OPTIONS_FRAME_NAME .. "Tab1FrameLoadProfileButton") then
+  MikSBTOpt.RetireColorPicker(true);
   -- Select the appropriate profile and update the current profile label.
   MikSBT.SelectProfile(UIDropDownMenu_GetSelectedValue(getglobal(OPTIONS_FRAME_NAME .. "Tab1FrameProfileDropdown")));
   getglobal(OPTIONS_FRAME_NAME .. "Tab1FrameCurrentProfileLabel"):SetText(MikSBTOpt.MSG_CURRENT_PROFILE_TEXT .. ": " .. MikSBT_Save.CurrentProfile);
@@ -1247,6 +1256,7 @@ function MikSBTOpt.ButtonOnClick()
 
  -- Delete profile button.
  elseif (this:GetName() == OPTIONS_FRAME_NAME .. "Tab1FrameDeleteProfileButton") then
+  MikSBTOpt.RetireColorPicker(true);
   local profileName = UIDropDownMenu_GetSelectedValue(getglobal(OPTIONS_FRAME_NAME .. "Tab1FrameProfileDropdown"));
   MikSBT.DeleteProfile(profileName);
 
@@ -1265,6 +1275,7 @@ function MikSBTOpt.ButtonOnClick()
 
  -- Reset profile button.
  elseif (this:GetName() == OPTIONS_FRAME_NAME .. "Tab1FrameResetProfileButton") then
+  MikSBTOpt.RetireColorPicker(true);
   local profileName = UIDropDownMenu_GetSelectedValue(getglobal(OPTIONS_FRAME_NAME .. "Tab1FrameProfileDropdown"));  
   MikSBT.ResetProfile(profileName, true);
 
@@ -1691,6 +1702,34 @@ end
 
 
 -- **********************************************************************************
+-- Color picker ownership. The native ColorPickerFrame is shared by every addon;
+-- MSBT records which profile table and setting it opened the picker for, so a
+-- later callback can never write into a different profile.
+-- **********************************************************************************
+local colorPickerOwner;
+
+local function GetOwnedColorTable(owner)
+ local currentTable = owner.profile;
+ for varName in string.gfind(owner.varPath, "[%w_]+") do
+  if (type(currentTable[varName]) ~= "table") then currentTable[varName] = {} end
+  currentTable = currentTable[varName];
+ end
+ return currentTable;
+end
+
+local function ApplyOwnedColor(owner, r, g, b)
+ local colorTable = GetOwnedColorTable(owner);
+ colorTable.r, colorTable.g, colorTable.b = r, g, b;
+
+ -- Only repaint the swatch while it still shows the owning profile.
+ if (owner.profile == MikSBT.CurrentProfile) then
+  local objColorSwatchTexture = getglobal(owner.swatch:GetName() .. "NormalTexture");
+  if (objColorSwatchTexture) then objColorSwatchTexture:SetVertexColor(r, g, b) end
+ end
+end
+
+
+-- **********************************************************************************
 -- Called when on of the color swatches for an event is clicked.
 -- **********************************************************************************
 function MikSBTOpt.ColorSwatchOnClick()
@@ -1698,15 +1737,18 @@ function MikSBTOpt.ColorSwatchOnClick()
  if (this.associatedVarPath) then
   -- Hide the event message editbox if it's shown.
   MikSBTOpt.HideMessageEditbox(this:GetParent():GetParent():GetName().. "MessageEditbox");
-  
+
+  -- Reusing an open picker for another swatch keeps the previous choice.
+  MikSBTOpt.RetireColorPicker(false);
+
   -- Get the r, g, and b values from the associated variable path and show the color picker.
   this.r = MikSBT.GetOptionFromVarPath(this.associatedVarPath .. ".r");
   this.g = MikSBT.GetOptionFromVarPath(this.associatedVarPath .. ".g");
   this.b = MikSBT.GetOptionFromVarPath(this.associatedVarPath .. ".b");
   this.swatchFunc = MikSBTOpt.ColorSwatchSetColor;
   this.cancelFunc = MikSBTOpt.ColorSwatchCancel;
-  ColorPickerFrame.associatedVarPath = this.associatedVarPath;
-  ColorPickerFrame.associatedColorSwatch = this;
+  colorPickerOwner = {profile = MikSBT.CurrentProfile, varPath = this.associatedVarPath, swatch = this,
+                      previous = {r = this.r, g = this.g, b = this.b}};
   UIDropDownMenuButton_OpenColorPicker(this);
  end
 end
@@ -1716,27 +1758,12 @@ end
 -- Caled when a color is selected for an event in the color picker dialog.
 -- **********************************************************************************
 function MikSBTOpt.ColorSwatchSetColor()
- -- Get the red, green, and blue color values.
+ local owner = colorPickerOwner;
+ -- Reject callbacks once the owning profile is no longer the current one.
+ if (not owner or owner.profile ~= MikSBT.CurrentProfile) then return end
+
  local r, g, b = ColorPickerFrame:GetColorRGB();
-
- -- Make sure there is an associated color swatch.
- if (ColorPickerFrame.associatedColorSwatch) then
-  -- Get the associated color swatch texture and make sure it's valid.
-  local objColorSwatchTexture = getglobal(ColorPickerFrame.associatedColorSwatch:GetName() .. "NormalTexture");
-  if (objColorSwatchTexture) then
-   -- Set the associated 
-   objColorSwatchTexture:SetVertexColor(r, g, b);
-  end
- end
-
-
- -- Check if the color swatch has an associated variable path.
- if (ColorPickerFrame.associatedVarPath) then
-  -- Update current profile data.
-  MikSBT.SetOptionFromVarPath(ColorPickerFrame.associatedVarPath .. ".r", r);
-  MikSBT.SetOptionFromVarPath(ColorPickerFrame.associatedVarPath .. ".g", g);
-  MikSBT.SetOptionFromVarPath(ColorPickerFrame.associatedVarPath .. ".b", b);
- end 
+ ApplyOwnedColor(owner, r, g, b);
 end
 
 
@@ -1744,22 +1771,34 @@ end
 -- Called when the color picker dialog is canceled.
 -- **********************************************************************************
 function MikSBTOpt.ColorSwatchCancel(previousValues)
- -- Make sure there is an associated color swatch.
- if (ColorPickerFrame.associatedColorSwatch) then
-  -- Get the associated color swatch texture and make sure it's valid.
-  local objColorSwatchTexture = getglobal(ColorPickerFrame.associatedColorSwatch:GetName() .. "NormalTexture");
-  if (objColorSwatchTexture) then
-   -- Set the associated 
-   objColorSwatchTexture:SetVertexColor(previousValues.r, previousValues.g, previousValues.b);
-  end
- end
+ local owner = colorPickerOwner;
+ if (not owner) then return end
+ colorPickerOwner = nil;
 
- -- Check if the color swatch has an associated variable path.
- if (ColorPickerFrame.associatedVarPath) then
-  -- Update current profile data.
-  MikSBT.SetOptionFromVarPath(ColorPickerFrame.associatedVarPath .. ".r", previousValues.r);
-  MikSBT.SetOptionFromVarPath(ColorPickerFrame.associatedVarPath .. ".g", previousValues.g);
-  MikSBT.SetOptionFromVarPath(ColorPickerFrame.associatedVarPath .. ".b", previousValues.b);
+ -- Restore the owning profile's original color, whichever profile is current.
+ local previous = owner.previous;
+ ApplyOwnedColor(owner, previous.r, previous.g, previous.b);
+end
+
+
+-- **********************************************************************************
+-- Closes an open MSBT-owned color picker. With restore, the owning profile's
+-- original color is put back (profile load, reset, delete); otherwise the colour
+-- chosen so far is kept (closing the options window). Another addon's open
+-- picker is never touched.
+-- **********************************************************************************
+function MikSBTOpt.RetireColorPicker(restore)
+ local owner = colorPickerOwner;
+ if (not owner) then return end
+ colorPickerOwner = nil;
+
+ if (ColorPickerFrame and ColorPickerFrame:IsShown() and
+     ColorPickerFrame.func == MikSBTOpt.ColorSwatchSetColor) then
+  HideUIPanel(ColorPickerFrame);
+  if (restore) then
+   local previous = owner.previous;
+   ApplyOwnedColor(owner, previous.r, previous.g, previous.b);
+  end
  end
 end
 
@@ -2079,7 +2118,7 @@ function MikSBTOpt.PopulateNotificationEventSettings()
 
     -- Set the font frame title to the checkbox's label and the event area.
     objEventSettings.FontFrameTitle = evtData.Label;
-    objEventSettings.EventArea = "Outgoing";
+    objEventSettings.EventArea = "Notification";
 
 
     -- Setup the color swatch and populate it.
@@ -3819,7 +3858,7 @@ function MikSBTOpt.PopulateProfileOptions()
 
  -- Populate the Show Game Damage checkbox and update it appropriately.
  MikSBTOpt.PopulateCheckbox(OPTIONS_FRAME_NAME .. "Tab1FrameShowGameDamageCheckbox");
- MikSBT.SetOptionShowGameDamage(MikSBT.CurrentProfile.ShowGameDamage);
+ MikSBT.ApplyGameDamageSetting();
 
   -- Populate the Show All Mana Gains checkbox.
  MikSBTOpt.PopulateCheckbox(OPTIONS_FRAME_NAME .. "Tab1FrameShowAllManaGainsCheckbox");
