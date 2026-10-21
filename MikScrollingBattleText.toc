@@ -2,7 +2,7 @@
 ## Interface: 11200
 ## X-ClassicAPI-Min-Version: 1.16.0
 ## Dependencies: !!!ClassicAPI
-## Title: Mik's Scrolling Battle Text
+## Title: |cffff9e38Mik's Scrolling Battle Text|r |cffffd6a8[Fostercare5988]|r
 ## Notes: Scrolling combat text engineered for ClassicAPI, SuperWoW, and NamPower.
 ## Author: Mik, Fostercare5988
 ## Version: 1.0.1
