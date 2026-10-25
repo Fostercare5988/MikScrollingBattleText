@@ -372,17 +372,7 @@ end
 -- Called when the mod's animation frames are updated.
 -- **********************************************************************************
 function MikSBT.OnUpdateAnimationFrame(frame)
- local scrollArea;
-
- -- Get the frame's name.
- local frameName = frame:GetName();
- if (frameName == scrollAreas.Incoming.AssociatedFrame) then
-  scrollArea = scrollAreas.Incoming;
- elseif (frameName == scrollAreas.Outgoing.AssociatedFrame) then
-  scrollArea = scrollAreas.Outgoing;
- elseif (frameName == scrollAreas.Notification.AssociatedFrame) then
-  scrollArea = scrollAreas.Notification;
- end
+ local scrollArea = frame.MSBTScrollArea;
 
  -- Flag for whether or not all the animations are inactive.
  local allInactive = true;
@@ -497,6 +487,8 @@ function MikSBT.SetupAnimationScrollAreas()
 
  -- Loop through the scroll areas.
  for _, scrollArea in scrollAreas do
+  getglobal(scrollArea.AssociatedFrame).MSBTScrollArea = scrollArea;
+
   -- Initialize the next available animation display object.
   scrollArea.NextAnimationDisplay = 1;
 
@@ -1740,6 +1732,8 @@ function MikSBT.AddAnimation(animationEvent)
  animDisplayInfo.FontObject:SetTextHeight(animDisplayInfo.FontSize);
  animDisplayInfo.FontObject:SetAlpha(animDisplayInfo.Alpha);
  animDisplayInfo.FontObject:SetPoint(animDisplayInfo.AnchorPoint, animDisplayInfo.PositionX, animDisplayInfo.PositionY);
+ animDisplayInfo.PlacedX, animDisplayInfo.PlacedY = animDisplayInfo.PositionX, animDisplayInfo.PositionY;
+ animDisplayInfo.Phase = nil;
  
  -- Athene Edit - Spell Icon
  local texture = animationEvent.Texture;
@@ -2098,6 +2092,15 @@ function MikSBT.RepositionStickyAnimDisplayInfo(scrollArea)
 end
 
 
+-- Moves a sticky's text only when its position changed since the last write.
+local function PlaceSticky(animDisplayInfo)
+ if (animDisplayInfo.PlacedX ~= animDisplayInfo.PositionX or animDisplayInfo.PlacedY ~= animDisplayInfo.PositionY) then
+  animDisplayInfo.FontObject:SetPoint(animDisplayInfo.AnchorPoint, animDisplayInfo.PositionX, animDisplayInfo.PositionY);
+  animDisplayInfo.PlacedX, animDisplayInfo.PlacedY = animDisplayInfo.PositionX, animDisplayInfo.PositionY;
+ end
+end
+
+
 -- **********************************************************************************
 -- Animates the passed animation display data.
 -- **********************************************************************************
@@ -2107,68 +2110,72 @@ function MikSBT.DoAnimation(animDisplayInfo, scrollArea)
  local currentTime = GetTime();
  local elapsedTime = currentTime - animDisplayInfo.LastUpdated;
 
- -- Check if it's a sticky or a crit and sticky crits are enabled.
+ -- Stickies: the size pops in, holds while the crit jiggles, then fades. Widget
+ -- values are written when the phase or position changes, not every frame.
  if (animDisplayInfo.IsSticky or (animDisplayInfo.IsCrit and MikSBT.CurrentProfile.UseStickyCrits)) then
-  -- Move the sticky in case it was repositioned.
-  animDisplayInfo.FontObject:SetPoint(animDisplayInfo.AnchorPoint, animDisplayInfo.PositionX, animDisplayInfo.PositionY);
+  local fontObject, texture = animDisplayInfo.FontObject, animDisplayInfo.Texture;
 
   if (elapsedTime <= STICKY_FADE_IN_TIME) then
-   local textDelta = animDisplayInfo.FontSize * (1 - (elapsedTime / STICKY_FADE_IN_TIME));
-   animDisplayInfo.FontObject:SetTextHeight(animDisplayInfo.FontSize + textDelta);
-   animDisplayInfo.FontObject:SetAlpha(1);
-   if animDisplayInfo.Texture then
-	animDisplayInfo.Texture:SetAlpha(1);
-	animDisplayInfo.Texture:SetWidth(animDisplayInfo.FontSize + textDelta);
-    animDisplayInfo.Texture:SetHeight(animDisplayInfo.FontSize + textDelta);
-  end
+   local size = animDisplayInfo.FontSize * (2 - (elapsedTime / STICKY_FADE_IN_TIME));
+   if (animDisplayInfo.Phase ~= 1) then
+    animDisplayInfo.Phase = 1;
+    fontObject:SetAlpha(1);
+    if texture then texture:SetAlpha(1) end
+   end
+   fontObject:SetTextHeight(size);
+   if texture then texture:SetWidth(size); texture:SetHeight(size) end
+   PlaceSticky(animDisplayInfo);
    return;
+
   elseif (elapsedTime <= (STICKY_DISPLAY_TIME + STICKY_FADE_IN_TIME)) then
-   animDisplayInfo.FontObject:SetAlpha(1);
-   if animDisplayInfo.Texture then animDisplayInfo.Texture:SetAlpha(1) end;
-   animDisplayInfo.FontObject:SetTextHeight(animDisplayInfo.FontSize);
-   if animDisplayInfo.Texture then
-	animDisplayInfo.Texture:SetWidth(animDisplayInfo.FontSize);
-    animDisplayInfo.Texture:SetHeight(animDisplayInfo.FontSize);
-  end
-     if animDisplayInfo.IsCrit then
-	  if not animDisplayInfo.timeLastJiggled then
-			animDisplayInfo.originalPositionX = animDisplayInfo.PositionX
-			animDisplayInfo.originalPositionY = animDisplayInfo.PositionY
-			animDisplayInfo.DecalageX = 0
-			animDisplayInfo.DecalageY = 0
-			animDisplayInfo.timeLastJiggled = 0
-	   end
-	   if animDisplayInfo.PositionY ~= (animDisplayInfo.originalPositionY + animDisplayInfo.DecalageY) then
-			animDisplayInfo.originalPositionX = animDisplayInfo.PositionX
-			animDisplayInfo.originalPositionY = animDisplayInfo.PositionY
-	   end
-	   if (elapsedTime - animDisplayInfo.timeLastJiggled > 0.05) then
-	   animDisplayInfo.DecalageX = math_random(-1, 1);
-	   animDisplayInfo.DecalageY = math_random(-1, 1);
-	   animDisplayInfo.PositionX = animDisplayInfo.originalPositionX + animDisplayInfo.DecalageX;
-	   animDisplayInfo.PositionY = animDisplayInfo.originalPositionY + animDisplayInfo.DecalageY;
-	   animDisplayInfo.timeLastJiggled = elapsedTime;
-	   animDisplayInfo.FontObject:SetPoint(animDisplayInfo.AnchorPoint, animDisplayInfo.PositionX, animDisplayInfo.PositionY);
-	  end
-  end
+   if (animDisplayInfo.Phase ~= 2) then
+    animDisplayInfo.Phase = 2;
+    fontObject:SetAlpha(1);
+    fontObject:SetTextHeight(animDisplayInfo.FontSize);
+    if texture then
+     texture:SetAlpha(1);
+     texture:SetWidth(animDisplayInfo.FontSize);
+     texture:SetHeight(animDisplayInfo.FontSize);
+    end
+   end
+   if animDisplayInfo.IsCrit then
+    if not animDisplayInfo.timeLastJiggled then
+     animDisplayInfo.originalPositionX = animDisplayInfo.PositionX
+     animDisplayInfo.originalPositionY = animDisplayInfo.PositionY
+     animDisplayInfo.DecalageX = 0
+     animDisplayInfo.DecalageY = 0
+     animDisplayInfo.timeLastJiggled = 0
+    end
+    -- Another sticky moved this one: jiggle around the new spot.
+    if animDisplayInfo.PositionY ~= (animDisplayInfo.originalPositionY + animDisplayInfo.DecalageY) then
+     animDisplayInfo.originalPositionX = animDisplayInfo.PositionX
+     animDisplayInfo.originalPositionY = animDisplayInfo.PositionY
+    end
+    if (elapsedTime - animDisplayInfo.timeLastJiggled > 0.05) then
+     animDisplayInfo.DecalageX = math_random(-1, 1);
+     animDisplayInfo.DecalageY = math_random(-1, 1);
+     animDisplayInfo.PositionX = animDisplayInfo.originalPositionX + animDisplayInfo.DecalageX;
+     animDisplayInfo.PositionY = animDisplayInfo.originalPositionY + animDisplayInfo.DecalageY;
+     animDisplayInfo.timeLastJiggled = elapsedTime;
+    end
+   end
+   PlaceSticky(animDisplayInfo);
    return;
+
   elseif (elapsedTime <= (STICKY_DISPLAY_TIME + STICKY_FADE_IN_TIME + STICKY_FADE_OUT_TIME)) then
    local alpha = 1 - ((elapsedTime - STICKY_DISPLAY_TIME - STICKY_FADE_IN_TIME) / STICKY_FADE_OUT_TIME);
+   animDisplayInfo.Phase = 3;
    animDisplayInfo.timeLastJiggled = nil
-   animDisplayInfo.FontObject:SetAlpha(alpha);
-   if animDisplayInfo.Texture then
-	animDisplayInfo.Texture:SetAlpha(alpha);
-  end
+   fontObject:SetAlpha(alpha);
+   if texture then texture:SetAlpha(alpha) end
+   PlaceSticky(animDisplayInfo);
    return;
   end
 
   -- Deactivate the animation.
-  animDisplayInfo.FontObject:SetAlpha(0);
-  if animDisplayInfo.Texture then
-	animDisplayInfo.Texture:SetAlpha(0);
-  end
+  fontObject:SetAlpha(0);
+  if texture then texture:SetAlpha(0) end
   animDisplayInfo.IsActive = false;
-
   return;
  end
 

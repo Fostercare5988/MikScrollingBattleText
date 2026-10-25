@@ -188,7 +188,11 @@ local nampowerPowerTypeToString = {
 
 local playerName = nil;
 local playerClass = nil;
+
+-- GUIDs of the player and pet, refreshed on world entry and UNIT_PET. Every
+-- NamPower event is matched against them, so the compare stays a plain ==.
 local playerGUID = nil;
+local petGUID = nil;
 
 -- DLL feature flags.
 local hasNampower = false;
@@ -247,36 +251,19 @@ local nampowerHandlers = {};
 -- DLL Verification & Helpers
 -------------------------------------------------------------------------------------
 
-local function GetUnitGuidSafe(unit)
- if not unit then return nil end
- local exists, guid = UnitExists(unit);
- if exists and guid and guid ~= "" then return guid end
- return nil;
-end
-
-local function GetPlayerGUID()
- if not playerGUID or playerGUID == "" then
-  playerGUID = GetUnitGuidSafe("player")
- end
- return playerGUID
-end
-
-local function EnsurePlayerGUID()
- return GetPlayerGUID() ~= nil
+local function RefreshGUIDs()
+ local _, guid = UnitExists("player");
+ playerGUID = guid;
+ local exists, pet = UnitExists("pet");
+ petGUID = exists and pet or nil;
 end
 
 local function IsPlayerGUID(guid)
- if not guid or guid == "" then return false end
- local pGuid = GetPlayerGUID()
- if not pGuid then return false end
- return (guid == pGuid) or (string_lower(tostring(guid)) == string_lower(tostring(pGuid)))
+ return guid ~= nil and guid == playerGUID
 end
 
 local function IsPetGUID(guid)
- if not guid or guid == "" then return false end
- local petGuid = GetUnitGuidSafe("pet")
- if not petGuid then return false end
- return (guid == petGuid) or (string_lower(tostring(guid)) == string_lower(tostring(petGuid)))
+ return guid ~= nil and guid == petGUID
 end
 
 local function GetNameFromGUID(guid)
@@ -641,7 +628,6 @@ nampowerHandlers["DEBUFF_REMOVED_SELF"] = function()
 end
 
 function MikCEH.OnNampowerEvent()
- EnsurePlayerGUID()
  local handler = nampowerHandlers[event]
  if handler then handler() end
 end
@@ -679,13 +665,7 @@ function MikCEH.Init()
   DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Modern]|r Requires NamPower and SuperWoW 2.2 for combat event processing!", 1, 0.2, 0.2);
  end
 
- if hasSuperWoW and UnitExists("player") then
-  local _, _, guid = pcall(UnitExists, "player")
-  if guid then playerGUID = guid end
- elseif hasNampower and UnitGUID then
-  local ok, guid = pcall(UnitGUID, "player")
-  if ok and guid then playerGUID = guid end
- end
+ RefreshGUIDs();
 
  if hasNampower and SetCVar then
   pcall(SetCVar, "NP_EnableAutoAttackEvents", "1")
@@ -697,6 +677,7 @@ function MikCEH.Init()
 end
 
 function MikCEH.RegisterEvents()
+ RefreshGUIDs();
  if searchFilter then MikCEH.EnableEventSearching(searchFilter) end;
  if MCEHEventFrame then
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED");
@@ -824,8 +805,7 @@ function MikCEH.OnEvent()
   end
 
  elseif (event == "PLAYER_ENTERING_WORLD") then
-  playerGUID = nil;
-  EnsurePlayerGUID();
+  RefreshGUIDs();
   table_wipe(spellNameCache); spellNameCacheSize = 0;
   table_wipe(globalStringInfoArray); globalStringInfoSize = 0;
   table_wipe(recentlySelectedPlayers);
@@ -889,6 +869,7 @@ function MikCEH.OnEvent()
   end
 
  elseif (event == "UNIT_PET" and arg1 == "player") then
+  RefreshGUIDs();
   if pendingHealthChecks.pet then pendingHealthChecks.pet:Cancel(); pendingHealthChecks.pet = nil end;
   lastPetHealthPercentage, lastHealthTriggerCheckTime.pet = 1, 0;
   MikCEH.ParsePetHealthTriggers();
