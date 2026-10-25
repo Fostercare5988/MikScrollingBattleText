@@ -13,7 +13,7 @@ if not MSBT_REQUIREMENTS_MET then return end
 
 -- Upvalue caches for frequently called functions.
 local string_find, string_gsub = string.find, string.gsub
-local table_insert, table_remove = table.insert, table.remove
+local table_insert = table.insert
 local table_setn = table.setn
 local math_ceil, math_floor, math_random = math.ceil, math.floor, math.random
 local GetTime = GetTime
@@ -964,6 +964,12 @@ function MikSBT.UpdateProfiles()
   profile.CreationVersion = nil;
   if (type(profile.EventSettings) == "table") then
    profile.EventSettings.MSBT_EVENTTYPE_NOTIFICATION_ITEM_BUFF = nil;
+  end
+  -- The Wisdom suppression guessed amounts (+30/33/39/50/53/59 of any mana);
+  -- it now names the Judgement of Wisdom mana return.
+  local wisdom = type(profile.Suppressions) == "table" and profile.Suppressions.MSBT_SUPPRESSION_WISDOM_MANA_GAINS;
+  if (wisdom and wisdom.SearchPattern == "+[35][039] " .. MANA) then
+   wisdom.SearchPattern = "Judgement of Wisdom";
   end
  end
  -- Saved default triggers that still parse chat text use the event types now.

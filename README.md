@@ -13,7 +13,7 @@ a complete client restart. UnitXP is not required by MSBT.
 
 ## Install or update
 
-Download `MikScrollingBattleText-1.0.0.zip` from
+Download `MikScrollingBattleText-1.1.0.zip` from
 [Releases](https://github.com/Fostercare5988/MikScrollingBattleText/releases/latest).
 Close the game and extract it into `Interface/AddOns`, so the TOC is at
 `Interface/AddOns/MikScrollingBattleText/MikScrollingBattleText.toc`.

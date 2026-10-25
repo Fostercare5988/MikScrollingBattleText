@@ -77,18 +77,6 @@ local availableOutlinesInherit;
 local availableTriggerEvents = {};
 MikSBTOpt.AvailableTriggerEvents = availableTriggerEvents;
 
-local availableClasses = {
- {Name="Shaman", Value="Shaman"},
- {Name="Rogue", Value="Rogue"},
- {Name="Warrior", Value="Warrior"},
- {Name="Paladin", Value="Paladin"},
- {Name="Mage", Value="Mage"},
- {Name="Priest", Value="Priest"},
- {Name="Warlock", Value="Warlock"},
- {Name="Druid", Value="Druid"},
- {Name="Hunter", Value="Hunter"},
-};
-local selectedClassFilter = "Shaman";
 
 
 -------------------------------------------------------------------------------------

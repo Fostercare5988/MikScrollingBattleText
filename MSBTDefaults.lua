@@ -1291,7 +1291,7 @@ MikSBT.DEFAULT_CONFIG = {
  Suppressions = {
   MSBT_SUPPRESSION_WISDOM_MANA_GAINS = {
    Enabled				= true,
-   SearchPattern			= "+[35][039] " .. MANA,
+   SearchPattern			= "Judgement of Wisdom",
   },
   MSBT_SUPPRESSION_ROGUE_VIGOR = {
    Enabled				= true,

@@ -640,6 +640,7 @@ end
 -------------------------------------------------------------------------------------
 
 function MikCEH.Init()
+ local _;
  _, playerClass = UnitClass("player");
  RefreshGUIDs();
 

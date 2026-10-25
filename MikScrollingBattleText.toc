@@ -5,7 +5,7 @@
 ## Title: |cffff9e38Mik's Scrolling Battle Text|r |cffffd6a8[Fostercare5988]|r
 ## Notes: Scrolling combat text engineered for ClassicAPI, SuperWoW, and NamPower.
 ## Author: Mik, Fostercare5988
-## Version: 1.0.1
+## Version: 1.1.0
 ## SavedVariables: MikSBT_Save
 ## X-Category: Combat
 ## X-Website: https://github.com/Fostercare5988
