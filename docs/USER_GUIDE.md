@@ -1,90 +1,85 @@
 # Mik's Scrolling Battle Text user guide
 
-Open `/msbt`. The six pages are **General, Incoming, Outgoing, Notification,
-Triggers and Suppressions**. Changes normally apply immediately and are saved by
-the game in `MikSBT_Save` on a normal logout/reload.
+Type `/msbt` to open the settings. The tabs are **General, Areas, Incoming,
+Outgoing, Notices, Triggers, Filters and Profiles**. Every change applies at
+once and is saved in `MikSBT_Save` when you log out or reload. The close button
+or Escape closes the window.
 
-## General and profiles
+## General
 
-General contains enable/disable, animation speed (1–5), partial effects,
-sticky criticals, mana-gain display, low-health/low-mana sounds, resist sound,
-game damage and profile controls. Resist sound applies to Cone of Cold/Frost Nova.
-Show All Mana Gains displays observed increases, including regeneration/drinking;
-spell mana gains share that stream. Energy/rage spell gains remain separate.
+Turn MSBT on or off, and choose partial effects (absorbed, blocked, resisted,
+crushing and glancing amounts), sticky critical hits, all mana gains
+(regeneration and drinking included), the game's own damage numbers, the
+low health, low mana and frost-resist sounds, and the scroll speed.
+**Fonts** sets the master font, outline and size for normal and critical text;
+areas and events inherit them unless you change them. **Game damage font**
+changes the game's own damage numbers after you log in again.
 
-Select a profile, then **Load Profile**. **Create Profile** creates defaults under
-the entered name; it does not copy the current profile. **Reset Profile** and
-**Delete Profile** use the existing confirmation dialogs. `/msbt reset` immediately
-resets the current profile, including custom triggers and filters. Existing profile choices are preserved when updating.
+In a font editor, the arrows or the mouse wheel step through the fonts. **Inherit
+size** uses the size of the area or master font; turn it off to set a size
+(12-64).
 
-**Edit Master Font Settings** sets normal/critical font, outline and size. Area and
-event font editors can inherit these values or override them. Font sizes are
-12–64; arrow buttons or mousewheel over font selectors/previews cycle fonts.
-**Edit Game Damage Font** edits native damage text separately; it changes after
-you log in again.
-There is no separate opacity control.
+## Areas
 
-## Incoming, Outgoing and Notification
+Pick Incoming, Outgoing or Notices, then its movement (straight or curved, up or
+down), text alignment, scroll height and fonts. **Move areas** shows a handle per
+area: drag it to place the area, and click **Move areas** again to hide the
+handles. **Preview** shows a sample line in each area. **Reset positions** puts
+all three areas back.
 
-Each page enables its area and lists events. Rows have an enabled choice, color,
-editable message and font button. Click the message to edit it; Enter accepts and
-clears focus, Escape restores the previous message. Tooltips list supported
-substitutions (such as `%a` amount, `%n` name, `%s` spell). Scroll to the last rows.
+## Incoming, Outgoing and Notices
 
-**Configure Scroll Area** opens movers for three areas: Incoming, Outgoing and
-Notification. Drag a handle to move an area. The control dialog selects the area,
-animation style, direction, alignment, scroll height (100–600), and numeric X/Y
-offsets. Width and corner resizing are not controls. **Preview** temporarily applies
-the layout and displays samples; **Save Settings** accepts it. **Cancel** or Escape
-restores the previous layout and stops active drags. Dialogs scale down to fit the
-UI canvas; verify comfort/input at your chosen game resolution and UI scale.
+One row per event: turn it on or off, click the dot to pick its color, click the
+message to edit it (Enter saves, Escape keeps the old text), and **Font** edits
+its font. The message tooltip lists the codes it fills, such as `%a` amount,
+`%n` name, `%s` spell and `%t` damage type. On Notices, **Sticky** pops the event
+in the middle of the area instead of scrolling it. The arrows at the bottom turn
+the page.
 
-Player/pet damage and heals come from ClassicAPI's combat log. Melee against different
-GUIDs remains distinct even if names match; configured spell merging can combine
-targets and labels those results Multiple. Critical counts and totals are retained.
-Absorbs and immunity use distinct events. Damage shields supply no spell ID and
-use the generic Damage Shield name without an invented icon.
+All combat text comes from ClassicAPI's combat log. Heals show the total; the
+log reports no overheal. Killing blows count a player kill even when you never
+targeted the player. Power Losses shows mana, rage or energy drained from you.
+Reputation changes show the faction and amount.
 
-**Healing amounts are total healing.** The combat log reports no overheal, so
-MSBT shows none.
+## Triggers
 
-Killing blows come from the combat log: a player you killed counts as a player
-kill even if you never targeted them. Power Losses shows mana, rage or energy
-drained from you. Reputation changes come with the faction's name and amount.
+Each trigger shows a message when something happens. A row has an on/off switch,
+the message (click to edit), its color, **Sticky**, **Font**, **Edit** and **X**
+to delete. **Add trigger** creates one and opens its editor.
 
-## Triggers and suppressions
+The editor sets the type, the classes it applies to, an icon path and:
 
-Triggers lists enabled state, message, color, font and trigger settings. **Add New
-Trigger** creates an entry. Its editor supports class restrictions and these types:
-player health/mana, pet health, enemy/friendly target health (1–100% threshold);
-Aura Gained (an aura name, for example Clearcasting); You Dodge; You Parry; Your
-Attack Dodged; and Search Pattern over selected chat events. All but the threshold
-types can require a stance. Any trigger can show an icon; clear the icon field to
-remove it. The built-in Overpower, Riposte, Counterattack, Mongoose Bite,
-Clearcasting, Nightfall and Windfury alerts use the event types; saved copies you
-never edited move over on load. Save Settings accepts the
-editor; Cancel leaves saved trigger settings intact. Thresholds fire when crossing
-below the percentage. Target changes reconsider the new target.
+- **Threshold types** (self health or mana, pet health, enemy or friendly target
+  health): the percentage it fires below.
+- **Aura Gained**: the exact buff name, for example Clearcasting.
+- **You Dodge**, **You Parry**, **Your Attack Dodged**: no further setting.
+- **Search Pattern**: one or two Lua patterns (or game text names) and the chat
+  events they are matched against; captures fill `%1` to `%9`.
 
-Search patterns accept Lua patterns or a native global format-string name;
-captures can be inserted with `%1`–`%9`. Invalid patterns do not break processing.
-Readiness defaults are health/proc/search alerts (for example Execute), not a
-general cooldown scheduler. MSBT does not track arbitrary cooldown completion.
+All but the threshold types can require a stance or form. **Save** keeps the
+changes, **Cancel** drops them. The built-in Overpower, Riposte, Counterattack,
+Mongoose Bite, Clearcasting, Nightfall and Windfury alerts use the event types.
 
-Suppressions adds enabled Lua patterns matched against formatted output/spell
-names. Edit the row message to change the pattern. Invalid patterns match nothing.
-Keep patterns narrow enough to preserve useful encounter text.
+## Filters
 
-## Other displays and commands
+A filter hides any text whose message or spell name matches its Lua pattern.
+Click a pattern to edit it, **X** deletes it, **Add filter** adds one.
 
-MSBT keeps its own combat events, profiles and animations. FostercareTweaks owns
-its energy/mana tick indicator; UnitXP owns its optional floating combat text.
-MSBT leaves their settings alone. Show Game Damage still controls native damage
-above heads. BigWigs can send chosen notifications through the unchanged
-`MikSBT.DisplayMessage` interface. Threat/encounter packages remain independent.
+## Profiles
 
-Commands: `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`, `/msbt reset`.
-`/msbt search CHAT_MSG` enables diagnostic event text; `/msbt search` stops it.
-Leave diagnostic output off during frame-pacing tests.
+Profiles are shared by your characters. Click a profile's dot to use it.
+**Create** adds a profile with the default settings, **Delete** removes one (not
+Default), and **Reset this profile** puts the current profile back to the
+defaults, triggers and filters included. `/msbt reset` does the same.
 
-Requirements: ClassicAPI 1.17.7+. SuperWoW, NamPower and UnitXP are not needed. DLL updates require a full restart. Use your configured client launcher.
+## Commands and other addons
+
+`/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`, `/msbt reset`.
+`/msbt search CHAT_MSG` prints the chat events whose name contains the text, to
+help write Search Pattern triggers; `/msbt search` stops it.
+
+BigWigs and other addons can send text through `MikSBT.DisplayMessage`. MSBT
+leaves other addons' floating text and settings alone.
+
+Requirements: ClassicAPI 1.17.7+. SuperWoW, NamPower and UnitXP are not needed.
+DLL updates need a full client restart.

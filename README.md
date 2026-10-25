@@ -13,7 +13,7 @@ restart.
 
 ## Install or update
 
-Download `MikScrollingBattleText-1.1.0.zip` from
+Download `MikScrollingBattleText-1.2.0.zip` from
 [Releases](https://github.com/Fostercare5988/MikScrollingBattleText/releases/latest).
 Close the game and extract it into `Interface/AddOns`, so the TOC is at
 `Interface/AddOns/MikScrollingBattleText/MikScrollingBattleText.toc`.
@@ -22,14 +22,10 @@ when updating to preserve profiles, fonts, triggers, filters and positions.
 
 ## Configure
 
-Type `/msbt`. The six pages are General, Incoming, Outgoing, Notification,
-Triggers and Suppressions. Configure each scroll area, normal/critical fonts,
-event messages and alerts. Movers support drag positioning, scroll height,
-preview, save and cancel. See [the user guide](docs/USER_GUIDE.md).
+Type `/msbt`. The tabs are General, Areas, Incoming, Outgoing, Notices, Triggers,
+Filters and Profiles. See [the user guide](docs/USER_GUIDE.md).
 
-Commands: `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`.
-`/msbt reset` immediately resets the current profile, including custom triggers
-and filters. Use the existing profile controls when managing multiple profiles.
+Commands: `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`, `/msbt reset`.
 
 ## Healing and other displays
 
@@ -44,4 +40,4 @@ capture mouse input.
 ## License and credits
 
 Original author: Mik. Maintained by [Fostercare5988](https://github.com/Fostercare5988). Licensed under the MIT License.
-The table recycler credits tekkub's compostLib; original source credits are retained.
+The table recycler credits tekkub's compostLib; the settings window uses the ForgeUI kit. Original source credits are retained.

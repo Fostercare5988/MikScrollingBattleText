@@ -2157,15 +2157,7 @@ function MikSBT.CommandHandler(params)
 
  -- Look for the recognized parameters.
  if (currentParam == "") then
-  if (MSBTFrameOptions) then
-   if (MSBTFrameOptions:IsShown()) then
-    MSBTFrameOptions:Hide();
-   else
-    if (MSBTScrollAreaMoverControlFrame and not MSBTScrollAreaMoverControlFrame:IsShown()) or (not MSBTScrollAreaMoverControlFrame) then
-     MSBTFrameOptions:Show();
-    end
-   end
-  end
+  MikSBTOpt.Toggle();
 
   -- Don't show the usage info.
   showUsage = false;

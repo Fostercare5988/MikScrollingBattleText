@@ -562,7 +562,7 @@ end
 function MikCEH.EnableEventSearching(searchPattern)
  searchFilter = searchPattern;
  if searchFrame and not (MikSBT_Save and MikSBT_Save.UserDisabled) then
-  for _, name in ipairs(MikSBTOpt.AvailableTriggerEvents or {}) do searchFrame:RegisterEvent(name) end;
+  for _, name in ipairs(MikSBTOpt.TRIGGER_EVENTS) do searchFrame:RegisterEvent(name) end;
  end
 end
 function MikCEH.DisableEventSearching()
