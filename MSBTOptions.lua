@@ -690,7 +690,7 @@ function MikSBTOpt.TriggerTypeDropdownOnClick(frameName)
  UIDropDownMenu_SetSelectedValue(getglobal(frameName), this.value);
 
  -- Setup the trigger controls appropriately depending on the trigger type.
- MikSBTOpt.SetupVariableTriggerControls(getglobal(frameName):GetParent().TriggerKey, this.value == MikCEH.TRIGGERTYPE_SEARCH_PATTERN);
+ MikSBTOpt.SetupVariableTriggerControls(getglobal(frameName):GetParent().TriggerKey, this.value);
 end
 
 
@@ -3521,7 +3521,7 @@ function MikSBTOpt.ShowTriggerConfig(triggerKey)
   
   MikSBTOpt.PopulateEditbox(TRIGGER_CONFIGURATION_FRAME_NAME .. "IconNameEditbox", texture);
   -- Setup the trigger controls appropriately depending on the trigger type.
-  MikSBTOpt.SetupVariableTriggerControls(triggerKey, triggerData.TriggerSettings.TriggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN);
+  MikSBTOpt.SetupVariableTriggerControls(triggerKey, triggerData.TriggerSettings.TriggerType);
 
   -- Show the trigger settings.
   triggerFrame:Show();
@@ -3530,94 +3530,60 @@ end
 
 
 -- **********************************************************************************
--- Show or hides the search pattern controls on the trigger config frame.
+-- Shows the controls the trigger type uses: a threshold for health and mana,
+-- events and patterns for search triggers, an aura name for aura triggers, and
+-- the stance requirement for every event trigger.
 -- **********************************************************************************
-function MikSBTOpt.SetupVariableTriggerControls(triggerKey, showSearch)
- -- Get the trigger configuration frame.
+function MikSBTOpt.SetupVariableTriggerControls(triggerKey, triggerType)
  local triggerFrame = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME);
-
- -- Get the trigger data for the passed trigger and make sure it exists.
  local triggerData = MikSBT.CurrentProfile.Triggers[triggerKey];
- if (triggerData) then
+ if (not triggerData) then return end
 
-  -- Check if the search pattern controls should be shown.
-  if (showSearch) then
-   -- Resize the trigger frame.
-   triggerFrame:SetHeight(450);
+ local isThreshold = triggerType < MikCEH.TRIGGERTYPE_SEARCH_PATTERN;
+ local isSearch = triggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN;
+ local isAura = triggerType == MikCEH.TRIGGERTYPE_AURA_GAIN;
+ local function Toggle(name, shown)
+  local frame = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. name);
+  if shown then frame:Show() else frame:Hide() end
+ end
 
-   -- Hide the threshold slider.
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "ThresholdSlider"):Hide();
+ triggerFrame:SetHeight(isThreshold and 270 or 450);
+ Toggle("ThresholdSlider", isThreshold);
+ Toggle("EventsScrollFrame", isSearch);
+ for i = 1, 4 do Toggle("TriggerEvent" .. i .. "Checkbox", isSearch) end
+ Toggle("StanceDropdown", not isThreshold);
+ Toggle("SearchPattern1Editbox", isSearch or isAura);
+ Toggle("SearchPattern2Editbox", isSearch);
+ Toggle("TextureHorizontalBarBottom", not isThreshold);
 
-   -- TODO: Show the search pattern controls.
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "EventsScrollFrame"):Show();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent1Checkbox"):Show();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent2Checkbox"):Show();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent3Checkbox"):Show();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent4Checkbox"):Show();
+ if (isThreshold) then
+  MikSBTOpt.PopulateSlider(TRIGGER_CONFIGURATION_FRAME_NAME .. "ThresholdSlider", triggerData.TriggerSettings.Threshold or 1);
+  return;
+ end
 
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown"):Show();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox"):Show();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern2Editbox"):Show();
-   
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TextureHorizontalBarBottom"):Show();
+ MikSBTOpt.PopulateDropdown(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown", triggerData.TriggerSettings.Stance or 7);
 
-   -- Clear the selected trigger events.
-   if (not triggerFrame.SelectedTriggerEvents) then
-    triggerFrame.SelectedTriggerEvents = {};
-   else
-    MikCEH.EraseTable(triggerFrame.SelectedTriggerEvents);
-   end
+ local patternLabel = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1EditboxLabel");
+ if (isAura) then
+  patternLabel:SetText(MikSBTOpt.MSG_TRIGGER_AURA_NAME_LABEL);
+  MikSBTOpt.PopulateEditbox(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox", triggerData.TriggerSettings.AuraName or "");
+ elseif (isSearch) then
+  patternLabel:SetText(MikSBTOpt.EDITBOXES["SearchPattern1Editbox"].Label);
 
-   -- Loop through all of the trigger events for the trigger.
-   for _, triggerEvent in pairs(triggerData.TriggerSettings.TriggerEvents or {}) do
-    triggerFrame.SelectedTriggerEvents[triggerEvent] = true;
-   end
-
-   -- Populate the appropriate trigger events.
-   MikSBTOpt.PopulateAvailableTriggerEvents();
-
-   
-   local stance = triggerData.TriggerSettings.Stance
-   if not stance then stance = 7 end
-   -- Populate the stance dropdown.
-  MikSBTOpt.PopulateDropdown(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown", stance);
-   
-   -- Holds the search patterns.
-   local searchPattern1 = ""; 
-   local searchPattern2 = "";
-
-   -- Check if there are search patterns defined.
-   if (triggerData.TriggerSettings.SearchPatterns) then
-    searchPattern1 = triggerData.TriggerSettings.SearchPatterns[1] or "";
-    searchPattern2 = triggerData.TriggerSettings.SearchPatterns[2] or "";
-   end
-
-   -- Populate the search pattern settings.
-   MikSBTOpt.PopulateEditbox(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox", searchPattern1);
-   MikSBTOpt.PopulateEditbox(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern2Editbox", searchPattern2);
-
+  -- Select the trigger's events in the event list.
+  if (not triggerFrame.SelectedTriggerEvents) then
+   triggerFrame.SelectedTriggerEvents = {};
   else
-   -- Resize the trigger frame.
-   triggerFrame:SetHeight(270);
-
-   -- Show the threshold slider.
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "ThresholdSlider"):Show();
-  
-   -- Hide the search pattern controls.
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "EventsScrollFrame"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent1Checkbox"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent2Checkbox"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent3Checkbox"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TriggerEvent4Checkbox"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox"):Hide();
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern2Editbox"):Hide();
-   
-   getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "TextureHorizontalBarBottom"):Hide();
-
-   -- Populate the threshold slider.
-   MikSBTOpt.PopulateSlider(TRIGGER_CONFIGURATION_FRAME_NAME .. "ThresholdSlider", triggerData.TriggerSettings.Threshold or 1);
+   MikCEH.EraseTable(triggerFrame.SelectedTriggerEvents);
   end
+  for _, triggerEvent in pairs(triggerData.TriggerSettings.TriggerEvents or {}) do
+   triggerFrame.SelectedTriggerEvents[triggerEvent] = true;
+  end
+  MikSBTOpt.PopulateAvailableTriggerEvents();
+
+  local patterns = triggerData.TriggerSettings.SearchPatterns or {};
+  MikSBTOpt.PopulateEditbox(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox", patterns[1] or "");
+  MikSBTOpt.PopulateEditbox(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern2Editbox", patterns[2] or "");
  end
 end
 
@@ -3696,55 +3662,34 @@ function MikSBTOpt.SaveTriggerConfig()
   local texture = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "IconNameEditbox"):GetText();
    triggerData.Texture = texture ~= "" and texture or nil;
   
-  -- Check if the trigger type is search pattern.
-  if (triggerData.TriggerSettings.TriggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
-   -- Clear the threshold field.
-   triggerData.TriggerSettings.Threshold = nil;
+  local settings = triggerData.TriggerSettings;
+  local triggerType = settings.TriggerType;
+  settings.Threshold, settings.TriggerEvents, settings.SearchPatterns, settings.AuraName, settings.Stance = nil, nil, nil, nil, nil;
 
-   local trigEvents = {};
-   for triggerEvent in triggerFrame.SelectedTriggerEvents do
-    table.insert(trigEvents, triggerEvent);
-   end
-
-   -- Save the selected trigger events. 
-   triggerData.TriggerSettings.TriggerEvents = trigEvents;
-
-   -- Save the required stance.
-  if UIDropDownMenu_GetSelectedValue(getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown")) ~= 7 then
-	triggerData.TriggerSettings.Stance = UIDropDownMenu_GetSelectedValue(getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown"));
-	if not GetShapeshiftFormInfo(triggerData.TriggerSettings.Stance) then
-		MikSBT.Print("This character has no such stance, so the trigger will not fire.", 1, 1, 0);
-	end
+  if (triggerType < MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
+   settings.Threshold = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "ThresholdSlider"):GetValue();
   else
-	triggerData.TriggerSettings.Stance = nil
-  end
-   
-   -- Create a table to hold the search patterns.
-   local searchPatterns = {};
-
-   -- Get the first search pattern, check if it is set to anything, and add it to the search patterns table.
-   local searchPattern = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox"):GetText();
-   if (searchPattern ~= "") then
-    table.insert(searchPatterns, searchPattern);
+   local stance = UIDropDownMenu_GetSelectedValue(getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown"));
+   if (stance and stance ~= 7) then
+    settings.Stance = stance;
+    if not GetShapeshiftFormInfo(stance) then
+     MikSBT.Print("This character has no such stance, so the trigger will not fire.", 1, 1, 0);
+    end
    end
 
-   -- Get the second search pattern, check if it is set to anything, and add it to the search patterns table.
-   searchPattern = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern2Editbox"):GetText();
-   if (searchPattern ~= "") then
-    table.insert(searchPatterns, searchPattern);
+   local pattern1 = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern1Editbox"):GetText();
+   if (triggerType == MikCEH.TRIGGERTYPE_AURA_GAIN) then
+    settings.AuraName = pattern1;
+   elseif (triggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
+    settings.TriggerEvents = {};
+    for triggerEvent in triggerFrame.SelectedTriggerEvents do
+     table.insert(settings.TriggerEvents, triggerEvent);
+    end
+    settings.SearchPatterns = {};
+    local pattern2 = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "SearchPattern2Editbox"):GetText();
+    if (pattern1 ~= "") then table.insert(settings.SearchPatterns, pattern1) end
+    if (pattern2 ~= "") then table.insert(settings.SearchPatterns, pattern2) end
    end
-
-   -- Save the search patterns for the trigger.
-   triggerData.TriggerSettings.SearchPatterns = searchPatterns;
- 
-  -- Trigger type is a threshold.
-  else
-   -- Clear the search pattern fields.
-   triggerData.TriggerSettings.TriggerEvents = nil;
-   triggerData.TriggerSettings.SearchPatterns = nil;
-
-   -- Save the threshold.
-   triggerData.TriggerSettings.Threshold = getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "ThresholdSlider"):GetValue();
   end
 
   -- Reregister all of the triggers.

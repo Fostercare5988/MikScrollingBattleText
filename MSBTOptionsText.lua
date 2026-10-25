@@ -38,6 +38,7 @@ MikSBTOpt.MSG_TRIGGER_EDIT_TRIGGER_SETTINGS_BUTTON_LABEL	= "Edit Trigger";
 MikSBTOpt.MSG_TRIGGER_EDIT_TRIGGER_SETTINGS_BUTTON_TOOLTIP	= "Edits the trigger's settings.";
 MikSBTOpt.MSG_TRIGGER_DELETE_TRIGGER_BUTTON_TOOLTIP		= "Deletes the trigger.";
 MikSBTOpt.MSG_TRIGGER_APPLICABLE_CLASSES_LABEL			= "Applicable Trigger Classes:";
+MikSBTOpt.MSG_TRIGGER_AURA_NAME_LABEL				= "Aura Name";
 MikSBTOpt.MSG_TRIGGER_NEW_TRIGGER_DEFAULT_MESSAGE		= "New Trigger: Click here to edit.";
 MikSBTOpt.MSG_SUPPRESSION_ENABLE_TOOLTIP				= "Sets whether or not the suppression is enabled.";
 MikSBTOpt.MSG_SUPPRESSION_DELETE_SUPPRESSION_BUTTON_TOOLTIP	= "Deletes the suppression.";

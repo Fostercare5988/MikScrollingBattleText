@@ -105,6 +105,10 @@ MikCEH.TRIGGERTYPE_PET_HEALTH		= 3;
 MikCEH.TRIGGERTYPE_ENEMY_HEALTH		= 4;
 MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH	= 5;
 MikCEH.TRIGGERTYPE_SEARCH_PATTERN	= 6;
+MikCEH.TRIGGERTYPE_AURA_GAIN		= 7;
+MikCEH.TRIGGERTYPE_YOU_DODGE		= 8;
+MikCEH.TRIGGERTYPE_YOU_PARRY		= 9;
+MikCEH.TRIGGERTYPE_TARGET_DODGES	= 10;
 
 -- Hit info bit flags.
 local HITINFO_CRITICALHIT = 128;
@@ -189,6 +193,12 @@ local selfManaTriggers = {};
 local petHealthTriggers = {};
 local enemyHealthTriggers = {};
 local friendlyHealthTriggers = {};
+-- Event triggers: aura gains by aura name, and dodges/parries from the melee
+-- and spell-miss events MSBT already handles.
+local auraGainTriggers = {};
+local youDodgeTriggers = {};
+local youParryTriggers = {};
+local targetDodgesTriggers = {};
 
 local lastSelfHealthPercentage = 0;
 local lastSelfManaPercentage = 0;
@@ -258,6 +268,22 @@ local function SetCombatIdentity(eventData, casterGuid, targetGuid)
  local incoming = eventData.DirectionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or
                   eventData.DirectionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
  eventData.UnitGUID = incoming and casterGuid or targetGuid;
+end
+
+local function FireTriggers(triggers)
+ for triggerKey in pairs(triggers) do
+  MikCEH.SendTriggerEvent(MikCEH.GetThresholdTriggerEventData(triggerKey, nil));
+ end
+end
+
+-- dodged/parried: victim avoided the attack. NamPower uses 2/3 for melee
+-- victim states and 3/4 for spell misses; deflects do not count.
+local function FireAvoidTriggers(directionType, dodged, parried)
+ if (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING) then
+  if dodged then FireTriggers(youDodgeTriggers) elseif parried then FireTriggers(youParryTriggers) end
+ elseif (directionType == MikCEH.DIRECTIONTYPE_PLAYER_OUTGOING and dodged) then
+  FireTriggers(targetDodgesTriggers);
+ end
 end
 
 local function CacheSpell(spellId)
@@ -381,6 +407,8 @@ nampowerHandlers["AUTO_ATTACK_SELF"] = function()
 
  local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
  local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
+ FireAvoidTriggers(directionType, victimState == 2, victimState == 3);
+
  local actionType = nampowerVictimStateToAction[victimState]
  if absorbedDmg > 0 and damage == 0 then
   actionType = MikCEH.ACTIONTYPE_ABSORB
@@ -484,6 +512,8 @@ nampowerHandlers["SPELL_MISS_SELF"] = function()
  local spellName = GetSpellNameFromId(spellId)
  local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
  local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
+ FireAvoidTriggers(directionType, missInfo == 3, missInfo == 4);
+
  local actionType = nampowerMissToAction[missInfo] or MikCEH.ACTIONTYPE_MISS
 
  local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, spellName, targetName)
@@ -545,6 +575,10 @@ nampowerHandlers["BUFF_ADDED_SELF"] = function()
 
  local spellName = GetSpellNameFromId(spellId)
  if not spellName then return end
+
+ -- arg7 0: newly added (not a stack change).
+ local triggers = auraGainTriggers[spellName];
+ if (triggers and tonumber(arg7) == 0) then FireTriggers(triggers) end
 
  local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_BUFF, nil, spellName)
  eventData.SpellId = spellId
@@ -1060,6 +1094,18 @@ function MikCEH.RegisterTrigger(triggerKey, triggerSettings)
    enemyHealthTriggers[triggerKey] = triggerSettings;
   elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH) then
    friendlyHealthTriggers[triggerKey] = triggerSettings;
+  elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_AURA_GAIN) then
+   local auraName = triggerSettings.AuraName;
+   if (auraName and auraName ~= "") then
+    if not auraGainTriggers[auraName] then auraGainTriggers[auraName] = {} end
+    auraGainTriggers[auraName][triggerKey] = triggerSettings;
+   end
+  elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_YOU_DODGE) then
+   youDodgeTriggers[triggerKey] = triggerSettings;
+  elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_YOU_PARRY) then
+   youParryTriggers[triggerKey] = triggerSettings;
+  elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_TARGET_DODGES) then
+   targetDodgesTriggers[triggerKey] = triggerSettings;
   elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
    for _, name in ipairs(triggerSettings.TriggerEvents or {}) do
     if not searchTriggers[name] then searchTriggers[name] = {} end
@@ -1080,6 +1126,10 @@ function MikCEH.UnregisterAllTriggers()
  MikCEH.EraseTable(petHealthTriggers);
  MikCEH.EraseTable(enemyHealthTriggers);
  MikCEH.EraseTable(friendlyHealthTriggers);
+ MikCEH.EraseTable(auraGainTriggers);
+ MikCEH.EraseTable(youDodgeTriggers);
+ MikCEH.EraseTable(youParryTriggers);
+ MikCEH.EraseTable(targetDodgesTriggers);
 end
 
 -- Start mana-gain observation from the current amount. Called when "Show All

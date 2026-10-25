@@ -151,6 +151,10 @@ MikSBT.AVAILABLE_TRIGGER_TYPES = {
  [4] = {Name="Enemy Target Health"},
  [5] = {Name="Friendly Target Health"},
  [6] = {Name="Search Pattern"},
+ [7] = {Name="Aura Gained"},
+ [8] = {Name="You Dodge"},
+ [9] = {Name="You Parry"},
+ [10] = {Name="Your Attack Dodged"},
 };
 
 
@@ -1180,10 +1184,7 @@ MikSBT.DEFAULT_CONFIG = {
    },
    TriggerSettings = {
     Classes				= {HUNTER=true},
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "CHAT_MSG_COMBAT_HOSTILEPLAYER_MISSES", "CHAT_MSG_COMBAT_PARTY_MISSES",
-                                 "CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE", "CHAT_MSG_SPELL_PARTY_DAMAGE"},
-    SearchPatterns		= {"VSPARRYOTHERSELF", "SPELLPARRIEDOTHERSELF"},
+    TriggerType			= 9,
    },
    Texture = "Interface\\Icons\\ability_warrior_challange"
   },
@@ -1199,10 +1200,7 @@ MikSBT.DEFAULT_CONFIG = {
    },
    TriggerSettings = {
     Classes				= {HUNTER=true},
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "CHAT_MSG_COMBAT_HOSTILEPLAYER_MISSES", "CHAT_MSG_COMBAT_PARTY_MISSES",
-                                 "CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE", "CHAT_MSG_SPELL_PARTY_DAMAGE"},
-    SearchPatterns		= {"VSDODGEOTHERSELF", "SPELLDODGEDOTHERSELF"},
+    TriggerType			= 8,
    },
    Texture = "Interface\\Icons\\ability_hunter_swiftstrike"
   },
@@ -1218,9 +1216,8 @@ MikSBT.DEFAULT_CONFIG = {
    },
    TriggerSettings = {
     Classes				= {MAGE=true,SHAMAN=true},
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS"},
-    SearchPatterns		= {string.format(AURAADDEDSELFHELPFUL, "Clearcasting")},
+    TriggerType			= 7,
+    AuraName			= "Clearcasting",
    },
    Texture = "Interface\\Icons\\spell_shadow_manaburn"
   },
@@ -1236,10 +1233,7 @@ MikSBT.DEFAULT_CONFIG = {
    },
    TriggerSettings = {
     Classes				= {ROGUE=true},
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "CHAT_MSG_COMBAT_HOSTILEPLAYER_MISSES", "CHAT_MSG_COMBAT_PARTY_MISSES",
-                                 "CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE", "CHAT_MSG_SPELL_PARTY_DAMAGE"},
-    SearchPatterns		= {"VSPARRYOTHERSELF", "SPELLPARRIEDOTHERSELF"},
+    TriggerType			= 9,
    },
    Texture = "Interface\\Icons\\ability_warrior_challange"
   },
@@ -1254,9 +1248,8 @@ MikSBT.DEFAULT_CONFIG = {
     },
    },
    TriggerSettings = {
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS"},
-    SearchPatterns		= {string.format(AURAADDEDSELFHELPFUL, string.gsub("Windfury Totem", "-", "%%-"))},  --"Vous gagnez Totem Furie-des-vents" -- escape char !
+    TriggerType			= 7,
+    AuraName			= "Windfury Totem",
    },
    Texture = "Interface\\Icons\\spell_nature_cyclone"
   },
@@ -1272,9 +1265,8 @@ MikSBT.DEFAULT_CONFIG = {
    },
    TriggerSettings = {
     Classes				= {WARLOCK=true},
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS"},
-    SearchPatterns		= {string.format(AURAADDEDSELFHELPFUL, "Shadow Trance")},
+    TriggerType			= 7,
+    AuraName			= "Shadow Trance",
    },
    Texture = "Interface\\Icons\\spell_shadow_twilight"
   },
@@ -1290,9 +1282,7 @@ MikSBT.DEFAULT_CONFIG = {
    },
    TriggerSettings = {
     Classes				= {WARRIOR=true},
-    TriggerType			= 6,
-    TriggerEvents			= {"CHAT_MSG_COMBAT_SELF_MISSES", "CHAT_MSG_SPELL_SELF_DAMAGE"},
-    SearchPatterns		= {"VSDODGESELFOTHER", "SPELLDODGEDSELFOTHER"},
+    TriggerType			= 10,
    },
    Texture = "Interface\\Icons\\ability_meleedamage"
   },

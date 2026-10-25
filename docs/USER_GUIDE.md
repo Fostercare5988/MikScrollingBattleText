@@ -55,10 +55,14 @@ drained from you. Reputation changes come with the faction's name and amount.
 ## Triggers and suppressions
 
 Triggers lists enabled state, message, color, font and trigger settings. **Add New
-Trigger** creates an entry. Its editor supports class restrictions, player
-health/mana, pet health, enemy/friendly target health (1–100% threshold), or search
-patterns over selected native text events. Search triggers can require a stance
-and set an icon; clear the icon field to remove it. Save Settings accepts the
+Trigger** creates an entry. Its editor supports class restrictions and these types:
+player health/mana, pet health, enemy/friendly target health (1–100% threshold);
+Aura Gained (an aura name, for example Clearcasting); You Dodge; You Parry; Your
+Attack Dodged; and Search Pattern over selected chat events. All but the threshold
+types can require a stance. Any trigger can show an icon; clear the icon field to
+remove it. The built-in Overpower, Riposte, Counterattack, Mongoose Bite,
+Clearcasting, Nightfall and Windfury alerts use the event types; saved copies you
+never edited move over on load. Save Settings accepts the
 editor; Cancel leaves saved trigger settings intact. Thresholds fire when crossing
 below the percentage. Target changes reconsider the new target.
 

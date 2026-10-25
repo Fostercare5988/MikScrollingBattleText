@@ -966,6 +966,31 @@ function MikSBT.UpdateProfiles()
    profile.EventSettings.MSBT_EVENTTYPE_NOTIFICATION_ITEM_BUFF = nil;
   end
  end
+ -- Saved default triggers that still parse chat text use the event types now.
+ local CHAT_TRIGGERS = {
+  MSBT_TRIGGER_COUNTER_ATTACK = {"VSPARRYOTHERSELF", 9},
+  MSBT_TRIGGER_RIPOSTE = {"VSPARRYOTHERSELF", 9},
+  MSBT_TRIGGER_MONGOOSE_BITE = {"VSDODGEOTHERSELF", 8},
+  MSBT_TRIGGER_OVERPOWER = {"VSDODGESELFOTHER", 10},
+  MSBT_TRIGGER_CLEARCAST = {"Clearcasting", 7},
+  MSBT_TRIGGER_WINDFURY = {"Windfury Totem", 7},
+  MSBT_TRIGGER_NIGHTFALL = {"Shadow Trance", 7},
+ };
+ local function MigrateTriggers(profile)
+  for key, old in pairs(CHAT_TRIGGERS) do
+   local trigger = type(profile.Triggers) == "table" and profile.Triggers[key];
+   local settings = trigger and trigger.TriggerSettings;
+   if (settings and settings.TriggerType == 6 and settings.SearchPatterns) then
+    local pattern, newType = old[1], old[2];
+    if (newType == 7) then pattern = string.format(AURAADDEDSELFHELPFUL, pattern) end
+    if (settings.SearchPatterns[1] == pattern) then
+     settings.TriggerType = newType;
+     settings.AuraName = (newType == 7) and old[1] or nil;
+     settings.TriggerEvents, settings.SearchPatterns = nil, nil;
+    end
+   end
+  end
+ end
  local function FillMissing(target, defaults)
   for key, value in pairs(defaults) do
    if target[key] == nil then
@@ -979,6 +1004,7 @@ function MikSBT.UpdateProfiles()
  for _, profile in pairs(MikSBT_Save.Profiles or {}) do
   if type(profile) == "table" then
    RetireSettings(profile);
+   MigrateTriggers(profile);
    FillMissing(profile, MikSBT.DEFAULT_CONFIG);
   end
  end
