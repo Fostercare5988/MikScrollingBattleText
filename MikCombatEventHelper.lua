@@ -138,7 +138,7 @@ local nampowerVictimStateToAction = {
  [5] = MikCEH.ACTIONTYPE_BLOCK,
  [6] = MikCEH.ACTIONTYPE_EVADE,
  [7] = MikCEH.ACTIONTYPE_IMMUNE,
- [8] = MikCEH.ACTIONTYPE_IMMUNE,
+ [8] = MikCEH.ACTIONTYPE_PARRY, -- deflect
 }
 
 local nampowerMissToAction = {
@@ -151,7 +151,7 @@ local nampowerMissToAction = {
  [6] = MikCEH.ACTIONTYPE_EVADE,
  [7] = MikCEH.ACTIONTYPE_IMMUNE,
  [8] = MikCEH.ACTIONTYPE_IMMUNE,
- [9] = MikCEH.ACTIONTYPE_REFLECT,
+ [9] = MikCEH.ACTIONTYPE_PARRY, -- deflect
  [10] = MikCEH.ACTIONTYPE_ABSORB,
  [11] = MikCEH.ACTIONTYPE_REFLECT,
 }
@@ -1289,7 +1289,7 @@ function MikCEH.ParseSelfManaTriggers()
 
   local manaDiff = manaAmount - lastSelfManaAmount;
   if (manaDiff > 0 and MikSBT.CurrentProfile and MikSBT.CurrentProfile.ShowAllManaGains) then
-   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_GAIN, manaDiff .. " " .. MANA, 0);
+   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_GAIN, manaDiff, MANA);
    MikCEH.SendEvent(eventData);
   end
 

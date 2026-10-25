@@ -1419,9 +1419,6 @@ function MikSBT.SetOptionUserDisabled(isDisabled)
   MikSBT.SetOptionShowGameDamage(MikSBT.CurrentProfile.ShowGameDamage);
   
   -- Blizzard/UnitXP floating text keeps its independently chosen enabled state.
-
-  -- Make sure that periodic spell effects are reported.
-  SetCVar("CombatLogPeriodicSpells", 1);
  end
 end
 
