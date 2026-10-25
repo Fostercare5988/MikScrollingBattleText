@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Combat Event Helper (ClassicAPI v1.16.0+ & SuperWoW 2.2+ Stack)
+-- Title: Mik's Combat Event Helper (ClassicAPI 1.17.7+, SuperWoW, NamPower)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
@@ -10,23 +10,16 @@ if not MSBT_REQUIREMENTS_MET then return end
 -- Create namespace.
 MikCEH = {};
 
--- Upvalue caches for high-performance execution.
--- Static unit ID pre-allocations for O(1) loop iteration
-local PARTY_UNITS = {}
-local RAID_UNITS = {}
-for i = 1, 4 do PARTY_UNITS[i] = "party" .. i end
-for i = 1, 40 do RAID_UNITS[i] = "raid" .. i end
-
-local string_find, string_gsub, string_gfind = string.find, string.gsub, string.gfind
-local string_len, string_sub, string_lower = string.len, string.sub, string.lower
-local table_insert, table_setn = table.insert, table.setn
+local string_find, string_gfind = string.find, string.gfind
+local string_len, string_sub = string.len, string.sub
 local table_wipe = table.wipe
 local GetTime, UnitHealth, UnitHealthMax = GetTime, UnitHealth, UnitHealthMax
 local UnitMana, UnitManaMax, UnitName, UnitClass = UnitMana, UnitManaMax, UnitName, UnitClass
-local UnitIsPlayer, UnitIsFriend, UnitExists = UnitIsPlayer, UnitIsFriend, UnitExists
+local UnitIsFriend, UnitExists = UnitIsFriend, UnitExists
 local UnitPowerType, GetComboPoints = UnitPowerType, GetComboPoints
-local pairs, tonumber, type, pcall, tostring = pairs, tonumber, type, pcall, tostring
-local bit_band = bit and bit.band
+local GetSpellInfo = GetSpellInfo
+local pairs, tonumber, type, pcall = pairs, tonumber, type, pcall
+local bit_band = bit.band
 
 -------------------------------------------------------------------------------------
 -- Public constants.
@@ -80,10 +73,8 @@ MikCEH.DAMAGETYPE_UNKNOWN	= 999;
 MikCEH.PARTIALACTIONTYPE_ABSORB		= 1;
 MikCEH.PARTIALACTIONTYPE_BLOCK		= 2;
 MikCEH.PARTIALACTIONTYPE_RESIST		= 3;
-MikCEH.PARTIALACTIONTYPE_VULNERABLE	= 4;
 MikCEH.PARTIALACTIONTYPE_CRUSHING	= 5;
 MikCEH.PARTIALACTIONTYPE_GLANCING	= 6;
-MikCEH.PARTIALACTIONTYPE_OVERHEAL	= 7;
 
 -- Heal types.
 MikCEH.HEALTYPE_NORMAL		= 1;
@@ -93,7 +84,6 @@ MikCEH.HEALTYPE_OVER_TIME	= 3;
 -- Notification types.
 MikCEH.NOTIFICATIONTYPE_DEBUFF		= 1;
 MikCEH.NOTIFICATIONTYPE_BUFF			= 2;
-MikCEH.NOTIFICATIONTYPE_ITEM_BUFF		= 3;
 MikCEH.NOTIFICATIONTYPE_BUFF_FADE		= 4;
 MikCEH.NOTIFICATIONTYPE_COMBAT_ENTER	= 5;
 MikCEH.NOTIFICATIONTYPE_COMBAT_LEAVE	= 6;
@@ -179,18 +169,12 @@ local nampowerPowerTypeToString = {
 -- Private variables.
 -------------------------------------------------------------------------------------
 
-local playerName = nil;
 local playerClass = nil;
 
 -- GUIDs of the player and pet, refreshed on world entry and UNIT_PET. Every
 -- NamPower event is matched against them, so the compare stays a plain ==.
 local playerGUID = nil;
 local petGUID = nil;
-
--- DLL feature flags.
-local hasNampower = false;
-local hasSuperWoW = false;
-
 
 -- Recycled event tables.
 MikCEH.CombatEventData = {};
@@ -215,7 +199,6 @@ local lastFriendlyHealthPercentage = 0;
 
 local TRIGGER_THROTTLE_INTERVAL = 0.15;
 local lastHealthTriggerCheckTime = {player = 0, target = 0, pet = 0};
-local lastManaTriggerCheckTime = 0;
 local pendingHealthChecks = {};
 local thresholdGeneration = 0;
 
@@ -226,10 +209,11 @@ local function ParseHealthUnit(unit)
  else MikCEH.ParseEnemyHealthTriggers(); end
 end
 
--- Caches.
-local spellNameCache = {};
-local spellNameCacheSize = 0;
-local MAX_SPELL_NAMES = 256;
+-- Spell names and icons by ID from ClassicAPI's GetSpellInfo. Misses are
+-- cached as false so an unknown ID is looked up once.
+local spellNames, spellIcons = {}, {};
+local spellCacheSize = 0;
+local MAX_CACHED_SPELLS = 256;
 local searchTriggers = {};
 local searchFrame;
 local searchFilter;
@@ -239,7 +223,7 @@ local combatLogFrame = nil;
 local nampowerHandlers = {};
 
 -------------------------------------------------------------------------------------
--- DLL Verification & Helpers
+-- Helpers
 -------------------------------------------------------------------------------------
 
 local function RefreshGUIDs()
@@ -276,32 +260,27 @@ local function SetCombatIdentity(eventData, casterGuid, targetGuid)
  eventData.UnitGUID = incoming and casterGuid or targetGuid;
 end
 
+local function CacheSpell(spellId)
+ if spellCacheSize >= MAX_CACHED_SPELLS then
+  table_wipe(spellNames); table_wipe(spellIcons);
+  spellCacheSize = 0;
+ end
+ local name, _, icon = GetSpellInfo(spellId);
+ spellNames[spellId] = name or false;
+ spellIcons[spellId] = icon or false;
+ spellCacheSize = spellCacheSize + 1;
+end
+
 local function GetSpellNameFromId(spellId)
  if not spellId or spellId == 0 then return nil end
- if spellNameCache[spellId] then return spellNameCache[spellId] end
+ if spellNames[spellId] == nil then CacheSpell(spellId) end
+ return spellNames[spellId] or nil;
+end
 
- local name
- if hasSuperWoW and SpellInfo then
-  local ok, n = pcall(SpellInfo, spellId)
-  if ok and n and n ~= "" then name = n end
- end
- if not name and hasNampower and GetSpellNameAndRankForId then
-  local ok, n = pcall(GetSpellNameAndRankForId, spellId)
-  if ok and n and n ~= "" then name = n end
- end
- if not name and MikSBT and MikSBT.SpellName then
-  name = MikSBT.SpellName(spellId, "Ability")
- end
-
- if name then
-  if spellNameCacheSize >= MAX_SPELL_NAMES then
-   table_wipe(spellNameCache);
-   spellNameCacheSize = 0;
-  end
-  spellNameCache[spellId] = name;
-  spellNameCacheSize = spellNameCacheSize + 1;
- end
- return name
+function MikCEH.GetSpellIcon(spellId)
+ if not spellId or spellId == 0 then return nil end
+ if spellIcons[spellId] == nil then CacheSpell(spellId) end
+ return spellIcons[spellId] or nil;
 end
 
 local function SchoolToDamageType(school)
@@ -530,7 +509,6 @@ nampowerHandlers["DAMAGE_SHIELD_SELF"] = function()
  local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid))
 
  local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, MikCEH.HITTYPE_NORMAL, damageType, damage, spellName, name)
- eventData.NoSpellIcon = true;
  SetCombatIdentity(eventData, casterGuid, targetGuid);
  MikCEH.SendEvent(eventData)
 end
@@ -563,7 +541,7 @@ end
 nampowerHandlers["BUFF_ADDED_SELF"] = function()
  local unitGuid = arg1
  local spellId = arg3
- if not IsPlayerGUID(unitGuid) and not IsPetGUID(unitGuid) then return end
+ if not IsPlayerGUID(unitGuid) then return end
 
  local spellName = GetSpellNameFromId(spellId)
  if not spellName then return end
@@ -576,7 +554,7 @@ end
 nampowerHandlers["DEBUFF_ADDED_SELF"] = function()
  local unitGuid = arg1
  local spellId = arg3
- if not IsPlayerGUID(unitGuid) and not IsPetGUID(unitGuid) then return end
+ if not IsPlayerGUID(unitGuid) then return end
 
  local spellName = GetSpellNameFromId(spellId)
  if not spellName then return end
@@ -594,7 +572,7 @@ nampowerHandlers["BUFF_REMOVED_SELF"] = function()
  local unitGuid = arg1
  local spellId = arg3
  if tonumber(arg7) == AURA_STATE_MODIFIED then return end
- if not IsPlayerGUID(unitGuid) and not IsPetGUID(unitGuid) then return end
+ if not IsPlayerGUID(unitGuid) then return end
 
  local spellName = GetSpellNameFromId(spellId)
  if not spellName then return end
@@ -608,7 +586,7 @@ nampowerHandlers["DEBUFF_REMOVED_SELF"] = function()
  local unitGuid = arg1
  local spellId = arg3
  if tonumber(arg7) == AURA_STATE_MODIFIED then return end
- if not IsPlayerGUID(unitGuid) and not IsPetGUID(unitGuid) then return end
+ if not IsPlayerGUID(unitGuid) then return end
 
  local spellName = GetSpellNameFromId(spellId)
  if not spellName then return end
@@ -628,30 +606,13 @@ end
 -------------------------------------------------------------------------------------
 
 function MikCEH.Init()
- playerName = UnitName("player");
  _, playerClass = UnitClass("player");
-
- hasNampower = (GetNampowerVersion ~= nil);
- hasSuperWoW = (SUPERWOW_VERSION ~= nil) or (SpellInfo ~= nil);
-
-
- MikCEH.hasNampower = hasNampower;
- MikCEH.hasSuperWoW = hasSuperWoW;
-
-
- if not hasNampower or not hasSuperWoW then
-  DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Modern]|r Requires NamPower and SuperWoW 2.2 for combat event processing!", 1, 0.2, 0.2);
- end
-
  RefreshGUIDs();
 
- if hasNampower and SetCVar then
-  pcall(SetCVar, "NP_EnableAutoAttackEvents", "1")
-  pcall(SetCVar, "NP_EnableSpellHealEvents", "1")
-  pcall(SetCVar, "NP_EnableSpellEnergizeEvents", "1")
- end
-
-
+ -- NamPower sends these events only when its CVars are on.
+ SetCVar("NP_EnableAutoAttackEvents", "1");
+ SetCVar("NP_EnableSpellHealEvents", "1");
+ SetCVar("NP_EnableSpellEnergizeEvents", "1");
 end
 
 function MikCEH.RegisterEvents()
@@ -785,7 +746,7 @@ function MikCEH.OnEvent()
 
  elseif (event == "PLAYER_ENTERING_WORLD") then
   RefreshGUIDs();
-  table_wipe(spellNameCache); spellNameCacheSize = 0;
+  table_wipe(spellNames); table_wipe(spellIcons); spellCacheSize = 0;
   table_wipe(globalStringInfoArray); globalStringInfoSize = 0;
   MikCEH.ResetThresholdState();
 
@@ -827,11 +788,7 @@ function MikCEH.OnEvent()
 
  elseif (event == "UNIT_MANA") then
   if arg1 ~= "player" then return end;
-  local now = GetTime();
-  if (now >= lastManaTriggerCheckTime) then
-   lastManaTriggerCheckTime = now;
-   MikCEH.ParseSelfManaTriggers();
-  end
+  MikCEH.ParseSelfManaTriggers();
 
  elseif (event == "PLAYER_TARGET_CHANGED") then
   if pendingHealthChecks.target then pendingHealthChecks.target:Cancel(); pendingHealthChecks.target = nil end;
@@ -884,15 +841,32 @@ function MikCEH.OnEvent()
  end
 end
 
--- Killing blows from the combat log: the victim's flags say whether it was a
--- player. Every other subevent (the whole nearby combat stream) returns at once.
+-- Subevents that take power from the destination unit.
+local DRAIN_SUBEVENTS = {SPELL_DRAIN = true, SPELL_PERIODIC_DRAIN = true, SPELL_LEECH = true, SPELL_PERIODIC_LEECH = true};
+
+-- The combat log gives killing blows (the victim's flags say whether it was a
+-- player) and power drained from you. Events that do not involve you, the bulk
+-- of the nearby combat stream, return at the first compare.
 function MikCEH.OnCombatLogEvent()
- if (arg2 ~= "PARTY_KILL" or arg4 ~= playerGUID) then return end
- local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
- if (bit_band(arg10 or 0, COMBATLOG_OBJECT_TYPE_PLAYER) ~= 0) then
-  notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
+ if (arg4 ~= playerGUID and arg8 ~= playerGUID) then return end
+ local subevent = arg2;
+ if (subevent == "PARTY_KILL") then
+  if (arg4 ~= playerGUID) then return end
+  local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
+  if (bit_band(arg10 or 0, COMBATLOG_OBJECT_TYPE_PLAYER) ~= 0) then
+   notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
+  end
+  MikCEH.SendEvent(MikCEH.GetNotificationEventData(notificationType, nil, arg9));
+ elseif (DRAIN_SUBEVENTS[subevent] and arg8 == playerGUID) then
+  -- spellId, spellName, school, then amount, powerType.
+  local powerTypeStr = nampowerPowerTypeToString[tonumber(arg16)];
+  local amount = tonumber(arg15) or 0;
+  if (powerTypeStr and amount > 0) then
+   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_LOSS, amount, powerTypeStr, arg13);
+   eventData.SpellId = arg12;
+   MikCEH.SendEvent(eventData);
+  end
  end
- MikCEH.SendEvent(MikCEH.GetNotificationEventData(notificationType, nil, arg9));
 end
 
 -------------------------------------------------------------------------------------
@@ -946,51 +920,6 @@ function MikCEH.GetNotificationEventData(notificationType, amount, effectName, S
  return eventData;
 end
 
-function MikCEH.GetUnitIDFromName(uName)
-	if not uName then return nil, nil end
-
-	-- Fast-path local player
-	if (uName == playerName) then
-		return "player", playerName
-	end
-
-	-- Fast-path target & pet
-	local targetName = UnitName("target")
-	if (targetName and uName == targetName) then
-		return "target", targetName
-	end
-	local petName = UnitName("pet")
-	if (petName and uName == petName) then
-		return "pet", petName
-	end
-
-	-- Fast pre-allocated party & raid entity lookup
-	for i = 1, 4 do
-		local uid = PARTY_UNITS[i]
-		if UnitExists(uid) and UnitName(uid) == uName then
-			return uid, uName
-		end
-	end
-	for i = 1, 40 do
-		local uid = RAID_UNITS[i]
-		if UnitExists(uid) and UnitName(uid) == uName then
-			return uid, uName
-		end
-	end
-
-	-- SuperWoW GUID lookup: only query hex-formatted GUIDs to avoid unknown unit name chat spam
-	if hasSuperWoW and string_lower(string_sub(uName, 1, 2)) == "0x" then
-		local ok, exist, uid = pcall(UnitExists, uName)
-		if ok and exist then return (uid or uName), UnitName(uid or uName) end
-	end
-
-	return nil, nil
-end
-
-function MikCEH.PopulateOverhealData(eventData)
- -- No supported provider supplies exact overheal. Keep total healing unchanged.
-end
-
 function MikCEH.SendEvent(eventData)
 	if (MikSBT.CombatEventsHandler ~= nil) then
 		MikSBT.CombatEventsHandler(eventData);
@@ -1002,7 +931,7 @@ function MikCEH.EraseTable(t)
 end
 
 -------------------------------------------------------------------------------------
--- Notification String Capture Helper (for XP, Rep, Honor, Environment)
+-- Chat text capture (honor, skill, XP and search triggers)
 -------------------------------------------------------------------------------------
 
 function MikCEH.GetGlobalStringInfo(globalStringName)
@@ -1077,37 +1006,15 @@ function MikCEH.GetCapturedData(combatMessage, globalStringName, captureOrder)
    end
    if (substituteValue == "%a") then
     orderedCaptureData.Amount = captureString;
-   elseif (substituteValue == "%b") then
-    orderedCaptureData.BuffName = captureString;
-   elseif (substituteValue == "%f") then
-    orderedCaptureData.FactionName = captureString;
    elseif (substituteValue == "%k") then
     orderedCaptureData.SkillName = captureString;
    elseif (substituteValue == "%n") then
     orderedCaptureData.Name = captureString;
-   elseif (substituteValue == "%p") then
-    orderedCaptureData.PowerType = captureString;
-   elseif (substituteValue == "%s") then
-    orderedCaptureData.SpellName = captureString;
-   elseif (substituteValue == "%t") then
-    orderedCaptureData.DamageType = MikCEH.GetDamageTypeNumber(captureString);
    end
   end
   return orderedCaptureData;
  end
  return nil;
-end
-
-function MikCEH.GetDamageTypeNumber(damageTypeString)
- if (damageTypeString == SPELL_SCHOOL0_CAP) then return MikCEH.DAMAGETYPE_PHYSICAL
- elseif (damageTypeString == SPELL_SCHOOL1_CAP) then return MikCEH.DAMAGETYPE_HOLY
- elseif (damageTypeString == SPELL_SCHOOL2_CAP) then return MikCEH.DAMAGETYPE_FIRE
- elseif (damageTypeString == SPELL_SCHOOL3_CAP) then return MikCEH.DAMAGETYPE_NATURE
- elseif (damageTypeString == SPELL_SCHOOL4_CAP) then return MikCEH.DAMAGETYPE_FROST
- elseif (damageTypeString == SPELL_SCHOOL5_CAP) then return MikCEH.DAMAGETYPE_SHADOW
- elseif (damageTypeString == SPELL_SCHOOL6_CAP or damageTypeString == "Arcane") then return MikCEH.DAMAGETYPE_ARCANE
- end
- return MikCEH.DAMAGETYPE_UNKNOWN;
 end
 
 function MikCEH.GetDamageTypeString(damageType)
@@ -1189,7 +1096,6 @@ function MikCEH.ResetThresholdState()
  lastSelfManaPercentage = 0;
  lastSelfManaAmount = UnitMana("player") or 0;
  lastHealthTriggerCheckTime.player, lastHealthTriggerCheckTime.pet, lastHealthTriggerCheckTime.target = 0, 0, 0;
- lastManaTriggerCheckTime = 0;
 end
 
 local function CheckHealthThresholds(unit, triggers, lastPercentage)

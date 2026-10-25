@@ -2749,15 +2749,6 @@
       </Anchors>
      </CheckButton>
 
-     <CheckButton name="$parentShowOverhealsCheckbox" inherits="MSBTCheckTemplate">
-      <Anchors>
-       <Anchor point="BOTTOMLEFT">
-        <Offset>
-         <AbsDimension x="355" y="80" />
-        </Offset>
-       </Anchor>
-      </Anchors>
-     </CheckButton>
 	 
      <!-- Row 1 (Top): Gains & Game Damage Checkboxes -->
      <CheckButton name="$parentShowAllManaGainsCheckbox" inherits="MSBTCheckTemplate">

@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Scrolling Battle Text (ClassicAPI v1.16.0+ & SuperWoW 2.2+ Stack)
+-- Title: Mik's Scrolling Battle Text (ClassicAPI 1.17.7+, SuperWoW, NamPower)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
@@ -18,7 +18,6 @@ local table_setn = table.setn
 local math_ceil, math_floor, math_random = math.ceil, math.floor, math.random
 local GetTime = GetTime
 local getglobal = getglobal
-local strlower = strlower
 local tonumber = tonumber
 local UnitClass = UnitClass
 
@@ -39,27 +38,6 @@ MikSBT.CurrentProfile = nil;
 -------------------------------------------------------------------------------------
 -- Private constants.
 -------------------------------------------------------------------------------------
-
--- Icon caches for dynamic lookups (file-scoped to prevent global leakage)
-local ICON_CACHE = {
-	["flametongue attack"] = "Interface\\Icons\\Spell_Nature_GuardianWard",
-	["stratholme holy water"] = "Interface\\Icons\\Inv_Potion_75",
-}
-
--- Cache for spellId-based icon lookups (bypasses Babble-Spell and tooltip scanning).
-local spellIdIconCache = {}
-local iconCacheCount = 2;
-local function CacheIcon(cache, key, texture)
- if iconCacheCount >= 256 then
-  table.wipe(spellIdIconCache);
-  table.wipe(ICON_CACHE);
-  ICON_CACHE["flametongue attack"] = "Interface\\Icons\\Spell_Nature_GuardianWard";
-  ICON_CACHE["stratholme holy water"] = "Interface\\Icons\\Inv_Potion_75";
-  iconCacheCount = 2;
- end
- if not cache[key] then iconCacheCount = iconCacheCount + 1 end;
- cache[key] = texture;
-end
 
 -- Damage type → color prefix lookup (lazily initialized after globals are available).
 local damageTypeColors
@@ -178,7 +156,6 @@ local CLASS_COLORS = {
 local NOTIFICATION_SUFFIX = {
  [MikCEH.NOTIFICATIONTYPE_DEBUFF]          = "DEBUFF",
  [MikCEH.NOTIFICATIONTYPE_BUFF]            = "BUFF",
- [MikCEH.NOTIFICATIONTYPE_ITEM_BUFF]       = "ITEM_BUFF",
  [MikCEH.NOTIFICATIONTYPE_BUFF_FADE]       = "BUFF_FADE",
  [MikCEH.NOTIFICATIONTYPE_COMBAT_ENTER]    = "COMBAT_ENTER",
  [MikCEH.NOTIFICATIONTYPE_COMBAT_LEAVE]    = "COMBAT_LEAVE",
@@ -240,10 +217,6 @@ end
 -- Private variables.
 -------------------------------------------------------------------------------------
 
--- Holds whether or not debugging is active.
-local debugMode = false;
-
-
 -- Holds the events the mod is interested in.
 local listenEvents = {};
 
@@ -279,18 +252,6 @@ local eventsRecycler = MikTRO:NewRecyclerObject(40);
 function MikSBT.Print(msg, r, g, b)
  -- Add the message to the default chat frame.
  DEFAULT_CHAT_FRAME:AddMessage("MSBT: " .. msg, r, g, b);
-end
-
-
--- **********************************************************************************
--- Prints out the passed message to the default chat frame.
--- **********************************************************************************
-function MikSBT.PrintDebug(msg, r, g, b)
- -- Check if debugging is active.
- if (debugMode) then
-  -- Add the message to the default chat frame.
-  DEFAULT_CHAT_FRAME:AddMessage(msg, r, g, b);
- end
 end
 
 
@@ -347,17 +308,8 @@ function MikSBT.OnEvent()
  end
  
  if (event == "PLAYER_ENTERING_WORLD") then
-	this:UnregisterEvent("ADDON_LOADED");
 	if MikSBT.CurrentProfile then MikSBT.ClearPendingEvents() end;
  end
-end
-
-
--- **********************************************************************************
--- Called when the core events frame is updated.
--- **********************************************************************************
-function MikSBT.OnUpdate()
- -- Deprecated: Event merging is handled event-driven via C_Timer.After in DispatchAnimationEvent.
 end
 
 
@@ -429,13 +381,7 @@ function MikSBT.Init()
  -- Set the current profile.
  MikSBT.CurrentProfile = MikSBT_Save.Profiles[MikSBT_Save.CurrentProfile];
 
- -- Set Game Damage font if configured
- if MikSBT.CurrentProfile and MikSBT.CurrentProfile.BlizzardFontSettings and MikSBT.CurrentProfile.BlizzardFontSettings.Normal then
-  local fontIndex = MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex
-  if MikSBT.AVAILABLE_FONTS and MikSBT.AVAILABLE_FONTS[fontIndex] then
-   DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[fontIndex].Path or "Fonts\\FRIZQT__.TTF"
-  end
- end
+ MikSBT.ApplyGameDamageFont();
 
  -- Sets up all of the animation scroll areas.
  MikSBT.SetupAnimationScrollAreas();
@@ -446,15 +392,17 @@ function MikSBT.Init()
  -- Register the triggers with the combat event helper.
  MikSBT.RegisterTriggers();
 
- -- Enable Nampower CVars for enhanced combat events when available.
- if MikCEH.hasNampower then
-  pcall(SetCVar, "NP_EnableAutoAttackEvents", "1")
-  pcall(SetCVar, "NP_EnableSpellHealEvents", "1")
-  pcall(SetCVar, "NP_EnableSpellEnergizeEvents", "1")
- end
-
  -- Disable or enable the mod depending on the saved setting.
  MikSBT.SetOptionUserDisabled(MikSBT_Save.UserDisabled)
+end
+
+
+-- **********************************************************************************
+-- The font of the game's own damage text (the client reads it at login).
+-- **********************************************************************************
+function MikSBT.ApplyGameDamageFont()
+ local font = MikSBT.AVAILABLE_FONTS[MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex];
+ if font then DAMAGE_TEXT_FONT = font.Path end
 end
 
 
@@ -586,17 +534,12 @@ function MikSBT.CombatEventsHandler(combatEvent)
  end
 
  -- Copy the amount, effect name, and player/enemy name from the passed combat event data.
- -- if combatEvent.Amount then
- -- animationEvent.Amount = combatEvent.Amount * 420;
- -- else
-  animationEvent.Amount = combatEvent.Amount;
- -- end
+ animationEvent.Amount = combatEvent.Amount;
  animationEvent.EffectName = combatEvent.EffectName;
  animationEvent.Name = combatEvent.Name;
  animationEvent.UnitGUID = combatEvent.UnitGUID;
  animationEvent.SpellId = combatEvent.SpellId;
  animationEvent.IsSpellManaGain = combatEvent.IsSpellManaGain;
- animationEvent.NoSpellIcon = combatEvent.NoSpellIcon;
 
  -- Check if there is a damage type and get the appropriate string.
  if (combatEvent.DamageType ~= nil) then
@@ -616,10 +559,6 @@ function MikSBT.CombatEventsHandler(combatEvent)
   if (RESIST_TRAILER) then
    animationEvent.PartialEffectText = " \124cff81007F\124h"..string_gsub(RESIST_TRAILER, "%%d", combatEvent.PartialAmount).."\124h\124r";
   end
- elseif (combatEvent.PartialActionType == MikCEH.PARTIALACTIONTYPE_VULNERABLE) then
-  if (MikSBT.MSG_VULERNABLE_TRAILER) then
-   animationEvent.PartialEffectText = string_gsub(MikSBT.MSG_VULERNABLE_TRAILER, "%%d", combatEvent.PartialAmount);
-  end
  elseif (combatEvent.PartialActionType == MikCEH.PARTIALACTIONTYPE_CRUSHING) then
   if (CRUSHING_TRAILER) then
    animationEvent.PartialEffectText = "\124cff7D0000\124h"..CRUSHING_TRAILER.."\124h\124r";
@@ -628,31 +567,12 @@ function MikSBT.CombatEventsHandler(combatEvent)
   if (GLANCING_TRAILER) then
    animationEvent.PartialEffectText = "\124cffFA0000\124h"..GLANCING_TRAILER.."\124h\124r";
   end
- elseif (combatEvent.PartialActionType == MikCEH.PARTIALACTIONTYPE_OVERHEAL) then
-  animationEvent.OverhealAmount = combatEvent.PartialAmount;
  end
 
 
 
  -- Check if there is profile data for the event type.
  if (MikSBT.CurrentProfile.EventSettings[eventTypeString]) then
-  -- Suppress Vigor energy gains if disabled by user.
-  if (combatEvent.NotificationType == MikCEH.NOTIFICATIONTYPE_POWER_GAIN and MikSBT.CurrentProfile.ShowVigorGains == false) then
-   local isVigor = false;
-   if (combatEvent.SpellId and (combatEvent.SpellId == 14983 or combatEvent.SpellId == 14984)) then
-    isVigor = true;
-   elseif (combatEvent.EffectName and type(combatEvent.EffectName) == "string") then
-    local vigorName = MikSBT.SpellName(14983, "Vigor");
-    if (combatEvent.EffectName == vigorName or string.lower(combatEvent.EffectName) == "vigor" or string.find(string.lower(combatEvent.EffectName), "vigor") ~= nil) then
-     isVigor = true;
-    end
-   end
-   if (isVigor) then
-    eventsRecycler:ReclaimTable(animationEvent);
-    return;
-   end
-  end
-
   -- Set the event type, the settings for it, its unformatted text and dispatch it to the animation system.
   animationEvent.EventType = eventTypeString;
   animationEvent.EventSettings = MikSBT.CurrentProfile.EventSettings[animationEvent.EventType];
@@ -806,11 +726,6 @@ function MikSBT.MergeEvents(mergeData, unmergedEvents, numEvents)
       end
      end
  
-     -- Check if there is an overheal amount and total it.
-     if (unmergedEvents[x].OverhealAmount ~= nil) then
-      animationEvent.OverhealAmount = (animationEvent.OverhealAmount or 0) + unmergedEvents[x].OverhealAmount;
-     end
- 
      -- Clear any partial effect text.
      animationEvent.PartialEffectText = nil;
  
@@ -889,191 +804,30 @@ end
 
 
 -- **********************************************************************************
--- This function gets the appropriate font size for an event.
+-- Font settings inherit event -> scroll area -> master; 0 means inherit.
 -- **********************************************************************************
+local function InheritedFontValue(scrollArea, eventSettings, isCrit, field)
+ local kind = isCrit and "Crit" or "Normal";
+ local value = 0;
+ if (eventSettings ~= nil and eventSettings.FontSettings[kind] ~= nil) then
+  value = eventSettings.FontSettings[kind][field] or 0;
+ end
+ if (value == 0) then value = scrollArea.DisplaySettings.FontSettings[kind][field] end
+ if (value == 0) then value = MikSBT.CurrentProfile.MasterFontSettings[kind][field] end
+ return value;
+end
+
 function MikSBT.GetFontSize(scrollArea, eventSettings, isCrit)
- -- Holds the font sizes for the event level.
- local eventFontSizeNormal = 0;
- local eventFontSizeCrit = 0;
-
- -- Check if there are event settings.
- if (eventSettings ~= nil) then
-  -- Get the font sizes for the event type.
-  eventFontSizeNormal = eventSettings.FontSettings.Normal.FontSize;
-
-  -- Check if there are crit font settings for the event.
-  if (eventSettings.FontSettings.Crit ~= nil) then
-   eventFontSizeCrit = eventSettings.FontSettings.Crit.FontSize;
-  end
- end
-
-  -- Get the font sizes for the scroll area and master.
- local scrollAreaFontSizeNormal = scrollArea.DisplaySettings.FontSettings.Normal.FontSize;
- local scrollAreaFontSizeCrit = scrollArea.DisplaySettings.FontSettings.Crit.FontSize;
- local masterFontSizeNormal = MikSBT.CurrentProfile.MasterFontSettings.Normal.FontSize;
- local masterFontSizeCrit = MikSBT.CurrentProfile.MasterFontSettings.Crit.FontSize;
-
-
- -- Get the normal font size for the event.
- local fontSize = eventFontSizeNormal;
-
- -- Check if the font size is inherited from the scroll area font size.
- if (fontSize == 0) then
-  fontSize = scrollAreaFontSizeNormal;
- end
-
- -- Check if the font size for the scroll area is inherited from the master font size.
- if (fontSize == 0) then
-  fontSize = masterFontSizeNormal;
- end
-
-
- -- Check if the event is a crit.
- if (isCrit) then
-  -- Get the crit font size for the event.
-  fontSize = eventFontSizeCrit;
-
-  -- Check if the font size is inherited from the scroll area font size.
-  if (fontSize == 0) then
-   fontSize = scrollAreaFontSizeCrit;
-  end
-
-  -- Check if the font size for the scroll area is inherited from the master font size.
-  if (fontSize == 0) then
-   fontSize = masterFontSizeCrit;
-  end
- end
-
- -- Return the font size.
- return fontSize;
+ return InheritedFontValue(scrollArea, eventSettings, isCrit, "FontSize");
 end
 
-
--- **********************************************************************************
--- This function gets the appropriate font path for an event.
--- **********************************************************************************
 function MikSBT.GetFontPath(scrollArea, eventSettings, isCrit)
- -- Holds the font indices for the event level.
- local eventFontIndexNormal = 0;
- local eventFontIndexCrit = 0;
-
- -- Check if there are event settings.
- if (eventSettings ~= nil) then
-  -- Get the font indices for the event type.
-  eventFontIndexNormal = eventSettings.FontSettings.Normal.FontIndex;
-
-  -- Check if there are crit font settings for the event.
-  if (eventSettings.FontSettings.Crit ~= nil) then
-   eventFontIndexCrit = eventSettings.FontSettings.Crit.FontIndex;
-  end
- end
-
- -- Get the font indices for the scroll area and master.
- local scrollAreaFontIndexNormal = scrollArea.DisplaySettings.FontSettings.Normal.FontIndex;
- local scrollAreaFontIndexCrit = scrollArea.DisplaySettings.FontSettings.Crit.FontIndex;
- local masterFontIndexNormal = MikSBT.CurrentProfile.MasterFontSettings.Normal.FontIndex;
- local masterFontIndexCrit = MikSBT.CurrentProfile.MasterFontSettings.Crit.FontIndex;
-
-
- -- Get the normal font index for the event.
- local fontIndex = eventFontIndexNormal;
-
- -- Check if the font index is inherited from the scroll area font index.
- if (fontIndex == 0) then
-  fontIndex = scrollAreaFontIndexNormal;
- end
-
- -- Check if the font index for the scroll area is inherited from the master font index.
- if (fontIndex == 0) then
-  fontIndex = masterFontIndexNormal;
- end
-
-
- -- Check if the event is a crit.
- if (isCrit) then
-  -- Get the crit font index for the event.
-  fontIndex = eventFontIndexCrit;
-
-  -- Check if the font index is inherited from the scroll area font index.
-  if (fontIndex == 0) then
-   fontIndex = scrollAreaFontIndexCrit;
-  end
-
-  -- Check if the font index for the scroll area is inherited from the master font index.
-  if (fontIndex == 0) then
-   fontIndex = masterFontIndexCrit;
-  end
- end
-
- -- Check if the font index is invalid and set it to the default if it is.
- if (MikSBT.AVAILABLE_FONTS[fontIndex] == nil) then
-  fontIndex = 1;
- end
-
- -- Return the font path.
- return MikSBT.AVAILABLE_FONTS[fontIndex].Path;
+ local font = MikSBT.AVAILABLE_FONTS[InheritedFontValue(scrollArea, eventSettings, isCrit, "FontIndex")];
+ return (font or MikSBT.AVAILABLE_FONTS[1]).Path;
 end
 
-
--- **********************************************************************************
--- This function gets the appropriate font outline style for an event.
--- **********************************************************************************
 function MikSBT.GetFontOutline(scrollArea, eventSettings, isCrit)
- -- Holds the outline indices for the event level.
- local eventOutlineIndexNormal = 0;
- local eventOutlineIndexCrit = 0;
-
- -- Check if there are event settings.
- if (eventSettings ~= nil) then
-  -- Get the outline indices for the event type.
-  eventOutlineIndexNormal = eventSettings.FontSettings.Normal.OutlineIndex;
-
-  -- Check if there are crit font settings for the event.
-  if (eventSettings.FontSettings.Crit ~= nil) then
-   eventOutlineIndexCrit = eventSettings.FontSettings.Crit.OutlineIndex;
-  end
- end
-
- -- Get the outline indices for the scroll area and master.
- local scrollAreaOutlineIndexNormal = scrollArea.DisplaySettings.FontSettings.Normal.OutlineIndex;
- local scrollAreaOutlineIndexCrit = scrollArea.DisplaySettings.FontSettings.Crit.OutlineIndex;
- local masterOutlineIndexNormal = MikSBT.CurrentProfile.MasterFontSettings.Normal.OutlineIndex;
- local masterOutlineIndexCrit = MikSBT.CurrentProfile.MasterFontSettings.Crit.OutlineIndex;
-
-
- -- Get the normal outline index for the event.
- local outlineIndex = eventOutlineIndexNormal;
-
- -- Check if the outline index is inherited from the scroll area outline index.
- if (outlineIndex == 0) then
-  outlineIndex = scrollAreaOutlineIndexNormal;
- end
-
- -- Check if the outline index for the scroll area is inherited from the master outline index.
- if (outlineIndex == 0) then
-  outlineIndex = masterOutlineIndexNormal;
- end
-
-
- -- Check if the event is a crit.
- if (isCrit) then
-  -- Get the crit outline index for the event.
-  outlineIndex = eventOutlineIndexCrit;
-
-  -- Check if the outline index is inherited from the scroll area outline index.
-  if (outlineIndex == 0) then
-   outlineIndex = scrollAreaOutlineIndexCrit;
-  end
-
-  -- Check if the outline index for the scroll area is inherited from the master outline index.
-  if (outlineIndex == 0) then
-   outlineIndex = masterOutlineIndexCrit;
-  end
- end
-
-
- -- Return the outline style.
- return MikSBT.AVAILABLE_OUTLINES[outlineIndex].Style;
+ return MikSBT.AVAILABLE_OUTLINES[InheritedFontValue(scrollArea, eventSettings, isCrit, "OutlineIndex")].Style;
 end
 
 
@@ -1102,13 +856,7 @@ function MikSBT.FormatEventText(animationEvent)
  
  -- Substitute amount.
  if (animationEvent.Amount ~= nil) then
-  -- Check if there is overheal info 
-  if (animationEvent.OverhealAmount ~= nil and MikSBT.CurrentProfile.ShowOverheals) then
-   local overhealTrailer = string_gsub(MikSBT.MSG_OVERHEAL_TRAILER, "%%d", animationEvent.OverhealAmount);
-   outputString = string_gsub(outputString, "%%a", (animationEvent.Amount - animationEvent.OverhealAmount) .. overhealTrailer);
-  else 
-   outputString = string_gsub(outputString, "%%a", animationEvent.Amount);
-  end
+  outputString = string_gsub(outputString, "%%a", animationEvent.Amount);
  end
 
  -- Substitute enemy/player names.
@@ -1206,6 +954,18 @@ end
 -- Updates profiles created with older versions.
 -- **********************************************************************************
 function MikSBT.UpdateProfiles()
+ local function RetireSettings(profile)
+  -- Show Vigor Gains is now only the Vigor suppression.
+  if (profile.ShowVigorGains == false and type(profile.Suppressions) == "table") then
+   profile.Suppressions.MSBT_SUPPRESSION_ROGUE_VIGOR = {Enabled = true, SearchPattern = "Vigor"};
+  end
+  profile.ShowVigorGains = nil;
+  profile.ShowOverheals = nil;
+  profile.CreationVersion = nil;
+  if (type(profile.EventSettings) == "table") then
+   profile.EventSettings.MSBT_EVENTTYPE_NOTIFICATION_ITEM_BUFF = nil;
+  end
+ end
  local function FillMissing(target, defaults)
   for key, value in pairs(defaults) do
    if target[key] == nil then
@@ -1218,6 +978,7 @@ function MikSBT.UpdateProfiles()
  end
  for _, profile in pairs(MikSBT_Save.Profiles or {}) do
   if type(profile) == "table" then
+   RetireSettings(profile);
    FillMissing(profile, MikSBT.DEFAULT_CONFIG);
   end
  end
@@ -1268,13 +1029,7 @@ function MikSBT.ResetProfile(profileName, showOutput)
    -- Register the triggers with the combat event helper.
    MikSBT.RegisterTriggers();
 
-   -- Set Game Damage font if configured
-   if MikSBT.CurrentProfile and MikSBT.CurrentProfile.BlizzardFontSettings and MikSBT.CurrentProfile.BlizzardFontSettings.Normal then
-    local fontIndex = MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex
-    if MikSBT.AVAILABLE_FONTS and MikSBT.AVAILABLE_FONTS[fontIndex] then
-     DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[fontIndex].Path or "Fonts\\FRIZQT__.TTF"
-    end
-   end
+   MikSBT.ApplyGameDamageFont();
   end
 
   -- Check if the output text is to be shown.
@@ -1317,13 +1072,7 @@ function MikSBT.SelectProfile(profileName)
   -- Register the triggers with the combat event helper.
   MikSBT.RegisterTriggers();
 
-  -- Set Game Damage font if configured
-  if MikSBT.CurrentProfile and MikSBT.CurrentProfile.BlizzardFontSettings and MikSBT.CurrentProfile.BlizzardFontSettings.Normal then
-   local fontIndex = MikSBT.CurrentProfile.BlizzardFontSettings.Normal.FontIndex
-   if MikSBT.AVAILABLE_FONTS and MikSBT.AVAILABLE_FONTS[fontIndex] then
-    DAMAGE_TEXT_FONT = MikSBT.AVAILABLE_FONTS[fontIndex].Path or "Fonts\\FRIZQT__.TTF"
-   end
-  end
+  MikSBT.ApplyGameDamageFont();
  end
 end
 
@@ -1498,7 +1247,6 @@ end
 --  Name			- The name of the enemy/player.
 --  DamageType		- The type of damage.
 --  PartialEffectText	- Partial effect text to be appended. (partial resists, absorbs, blocks)
---  OverhealAmount	- The amount overhealed.
 -- **********************************************************************************
 -- Asynchronous merge workers using C_Timer.After to eradicate per-frame polling.
 -- **********************************************************************************
@@ -1568,7 +1316,6 @@ end
 --  Name			- The name of the enemy/player.
 --  DamageType		- The type of damage.
 --  PartialEffectText	- Partial effect text to be appended. (partial resists, absorbs, blocks)
---  OverhealAmount	- The amount overhealed.
 --  Text			- The formatted text to display.
 -- **********************************************************************************
 function MikSBT.DispatchAnimationEvent(animationEvent)
@@ -1728,59 +1475,8 @@ function MikSBT.AddAnimation(animationEvent)
  animDisplayInfo.PlacedX, animDisplayInfo.PlacedY = animDisplayInfo.PositionX, animDisplayInfo.PositionY;
  animDisplayInfo.Phase = nil;
  
- -- Athene Edit - Spell Icon
- local texture = animationEvent.Texture;
-
-	-- SpellId-based icon lookup (fast DBC path via SuperWoW or NamPower)
-	if not texture and animationEvent.SpellId then
-		local sid = animationEvent.SpellId
-		if spellIdIconCache[sid] then
-			texture = spellIdIconCache[sid]
-		elseif MikCEH.hasSuperWoW and SpellInfo then
-			local ok, _, _, tex = pcall(SpellInfo, sid)
-			if ok and tex then texture = tex; CacheIcon(spellIdIconCache, sid, tex) end
-		elseif MikCEH.hasNampower and GetSpellRecField and GetSpellIconTexture then
-			local ok, iconId = pcall(GetSpellRecField, sid, "spellIconID")
-			if ok and iconId then
-				local ok2, tex = pcall(GetSpellIconTexture, iconId)
-				if ok2 and tex then texture = tex; CacheIcon(spellIdIconCache, sid, tex) end
-			end
-		end
-	end
-
-	if not texture and animationEvent.EffectName and not animationEvent.NoSpellIcon then
-		local name = string_gsub(animationEvent.EffectName, " %(%d+%)", "")
-		local lname = strlower(name)
-		local cached = ICON_CACHE[lname]
-		if cached then
-			texture = cached
-		elseif not animationEvent.SpellId then
-			if MikCEH.hasNampower and GetSpellIdForName then
-				local ok, sid = pcall(GetSpellIdForName, name)
-				if ok and sid and sid ~= 0 then
-					if MikCEH.hasSuperWoW and SpellInfo then
-						local ok2, _, _, tex = pcall(SpellInfo, sid)
-						if ok2 and tex then texture = tex; CacheIcon(ICON_CACHE, lname, tex) end
-					end
-					if not texture and GetSpellRecField and GetSpellIconTexture then
-						local ok2, iconId = pcall(GetSpellRecField, sid, "spellIconID")
-						if ok2 and iconId then
-							local ok3, tex = pcall(GetSpellIconTexture, iconId)
-							if ok3 and tex then texture = tex; CacheIcon(ICON_CACHE, lname, tex) end
-						end
-					end
-				end
-			end
-			if not texture and GetItemInfo then
-				local ok, _, _, _, _, _, _, _, _, tex = pcall(GetItemInfo, name)
-				if ok and tex then
-					texture = tex
-					CacheIcon(ICON_CACHE, lname, tex)
-				end
-			end
-
-		end
-	end
+ -- Spell icon: the trigger's own texture, else the spell's icon by ID.
+ local texture = animationEvent.Texture or MikCEH.GetSpellIcon(animationEvent.SpellId);
 
 	if texture then
 		if not animDisplayInfo.Texture then
@@ -2476,13 +2172,6 @@ function MikSBT.CommandHandler(params)
   -- Don't show the usage info.
   showUsage = false;
 
- elseif (currentParam == MikSBT.COMMAND_STATS) then
-  -- Print out stats about the event recycler.
-  eventsRecycler:PrintStats();
-
-  -- Don't show the usage info.
-  showUsage = false;
-
  elseif (currentParam == MikSBT.COMMAND_SEARCH) then
   -- Check if there is any filter text
   if (remainingParams and remainingParams ~= "") then
@@ -2494,32 +2183,6 @@ function MikSBT.CommandHandler(params)
    MikCEH.DisableEventSearching();
    MikSBT.Print(MikSBT.MSG_SEARCH_DISABLE, 1, 1, 1);
   end
-
-  -- Don't show the usage info.
-  showUsage = false;
-
- elseif (currentParam == MikSBT.COMMAND_DEBUG) then
-  -- Toggle the debug mode option.
-  debugMode = not debugMode;
-
-  -- Check if debug mode was enabled or disabled and output the appropriate message.
-  if (debugMode) then
-   MikSBT.Print(MikSBT.MSG_DEBUG_ENABLE, 1,1,1);
-  else
-   MikSBT.Print(MikSBT.MSG_DEBUG_DISABLE, 1,1,1);
-  end  
-
-  -- Don't show the usage info.
-  showUsage = false;
-
- elseif (currentParam == MikSBT.COMMAND_VIGOR) then
-  if (MikSBT.CurrentProfile.ShowVigorGains == false) then
-   MikSBT.CurrentProfile.ShowVigorGains = true;
-  else
-   MikSBT.CurrentProfile.ShowVigorGains = false;
-  end
-  local status = MikSBT.CurrentProfile.ShowVigorGains and "enabled" or "disabled";
-  MikSBT.Print("Vigor energy gains are now " .. status .. ".", 1, 1, 1);
 
   -- Don't show the usage info.
   showUsage = false;

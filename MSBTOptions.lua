@@ -2,7 +2,6 @@
 -- Title: Mik's Scrolling Battle Text Options
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
--- Built natively for ClassicAPI v1.16.0+, SuperWoW 2.2+, NamPower 4.6.2+
 -------------------------------------------------------------------------------------
 
 -- ClassicAPIRequirement.lua checks the DLLs.
@@ -676,7 +675,7 @@ function MikSBTOpt.ScrollAreaDropdownOnClick(frameName)
  MikSBTOpt.DropdownOnClick(frameName);
 
  -- Get the selected scroll area.
- scrollArea = UIDropDownMenu_GetSelectedValue(getglobal(frameName));
+ local scrollArea = UIDropDownMenu_GetSelectedValue(getglobal(frameName));
  if (scrollArea ~= nil) then
   -- Populate the controls for the scroll area.
   MikSBTOpt.PopulateScrollAreaControls(scrollArea);
@@ -740,10 +739,6 @@ function MikSBTOpt.InitCheckboxes()
  -- Initialize the Use Sticky Crits checkbox.
  key = "Tab1FrameUseStickyCritsCheckbox";
  MikSBTOpt.SetupCheckbox(OPTIONS_FRAME_NAME .. key, MikSBTOpt.CHECKBOXES[key].Label, MikSBTOpt.CHECKBOXES[key].Tooltip, "UseStickyCrits");
-
- -- Initialize the Show Overheals checkbox.
- key = "Tab1FrameShowOverhealsCheckbox";
- MikSBTOpt.SetupCheckbox(OPTIONS_FRAME_NAME .. key, MikSBTOpt.CHECKBOXES[key].Label, MikSBTOpt.CHECKBOXES[key].Tooltip, "ShowOverheals");
 
  -- Initialize the Show Game Damage checkbox.
  key = "Tab1FrameShowGameDamageCheckbox";
@@ -1901,21 +1896,20 @@ function MikSBTOpt.InitEvents()
  evtData = MikSBTOpt.NOTIFICATION_EVENTS;
  index = 1;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_DEBUFF";
  index = 2;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_BUFF";
- index = 3;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_ITEM_BUFF";
- index = 4;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_BUFF_FADE";
- index = 5;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_COMBAT_ENTER";
- index = 6;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_COMBAT_LEAVE";
- index = 7;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_POWER_GAIN";
- index = 8;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_POWER_LOSS";
- index = 9;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_CP_GAIN";
- index = 10;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_CP_FULL";
- index = 11;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_HONOR_GAIN";
- index = 12;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_REP_GAIN";
- index = 13;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_REP_LOSS";
- index = 14;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_SKILL_GAIN";
- index = 15;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_EXPERIENCE_GAIN";
- index = 16;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_PC_KILLING_BLOW";
- index = 17;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_NPC_KILLING_BLOW";
+ index = 3;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_BUFF_FADE";
+ index = 4;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_COMBAT_ENTER";
+ index = 5;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_COMBAT_LEAVE";
+ index = 6;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_POWER_GAIN";
+ index = 7;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_POWER_LOSS";
+ index = 8;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_CP_GAIN";
+ index = 9;		evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_CP_FULL";
+ index = 10;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_HONOR_GAIN";
+ index = 11;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_REP_GAIN";
+ index = 12;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_REP_LOSS";
+ index = 13;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_SKILL_GAIN";
+ index = 14;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_EXPERIENCE_GAIN";
+ index = 15;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_PC_KILLING_BLOW";
+ index = 16;	evtData[index].EventType = "MSBT_EVENTTYPE_NOTIFICATION_NPC_KILLING_BLOW";
 end
 
 
@@ -2253,7 +2247,7 @@ function MikSBTOpt.PopulateSuppressionSettings()
 
  -- Loop through all of the visible items.
  for i = 1, SUPPRESSION_ITEMS_PER_PAGE do
-  objSuppressionItemSettings = getglobal(OPTIONS_FRAME_NAME .. "Tab6FrameSuppression" .. i);
+  local objSuppressionItemSettings = getglobal(OPTIONS_FRAME_NAME .. "Tab6FrameSuppression" .. i);
 
   -- Make sure the suppression settings object exists.
   if (objSuppressionItemSettings) then
@@ -2584,7 +2578,7 @@ function MikSBTOpt.ShowBlizzardFontSettings()
 
  -- Update the font previews.
  MikSBTOpt.UpdateFontPreviews();
- MikSBT.Print("Restart the game or disconnect to apply Game Damage font.", 1, 0, 0)
+ MikSBT.Print("The game damage font changes after you log in again.", 1, 1, 0)
 end
 
 
@@ -3719,8 +3713,7 @@ function MikSBTOpt.SaveTriggerConfig()
   if UIDropDownMenu_GetSelectedValue(getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown")) ~= 7 then
 	triggerData.TriggerSettings.Stance = UIDropDownMenu_GetSelectedValue(getglobal(TRIGGER_CONFIGURATION_FRAME_NAME .. "StanceDropdown"));
 	if not GetShapeshiftFormInfo(triggerData.TriggerSettings.Stance) then
-		MikSBT.Print("No stance found for the selected requirement on this character, this trigger might never occur :o", 1, 1, 0);
-		MikSBT.Print("Also it's dangerous to go alone! take this. o-[====>", 1, 1, 0); --remind me that this is a beta release
+		MikSBT.Print("This character has no such stance, so the trigger will not fire.", 1, 1, 0);
 	end
   else
 	triggerData.TriggerSettings.Stance = nil
@@ -3848,9 +3841,6 @@ function MikSBTOpt.PopulateProfileOptions()
  
  -- Populate the Use Sticky Crits checkbox.
  MikSBTOpt.PopulateCheckbox(OPTIONS_FRAME_NAME .. "Tab1FrameUseStickyCritsCheckbox");
-
- -- Populate the Show Overheals checkbox.
- MikSBTOpt.PopulateCheckbox(OPTIONS_FRAME_NAME .. "Tab1FrameShowOverhealsCheckbox");
 
  -- Populate the Show Game Damage checkbox and update it appropriately.
  MikSBTOpt.PopulateCheckbox(OPTIONS_FRAME_NAME .. "Tab1FrameShowGameDamageCheckbox");

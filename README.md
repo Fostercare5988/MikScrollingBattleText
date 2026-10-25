@@ -33,9 +33,9 @@ and filters. Use the existing profile controls when managing multiple profiles.
 
 ## Healing and other displays
 
-NamPower 4.6.2 supplies total healing. Exact effective healing and overheal are
-unavailable; UnitXP build 90 has no health/maxhealth commands. The stored Show
-Overheals preference remains available without inventing an estimate.
+Heals show the total NamPower reports; no installed provider reports overheal.
+Killing blows and drained power come from ClassicAPI's combat log, and
+reputation from its `FACTION_STANDING_CHANGED` event.
 
 Show Game Damage controls native damage above enemy heads. Other addons retain
 their own resource, floating-text and encounter displays. Combat text does not

@@ -11,8 +11,8 @@
 ## X-Website: https://github.com/Fostercare5988
 
 ClassicAPIRequirement.lua
-localization.lua
-localization_options.lua
+MSBTDefaults.lua
+MSBTOptionsText.lua
 MikTableRecyclerObject.lua
 MikCombatEventHelper.lua
 MikScrollingBattleText.lua
