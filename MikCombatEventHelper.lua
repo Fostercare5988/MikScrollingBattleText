@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Combat Event Helper (ClassicAPI 1.17.7+, SuperWoW, NamPower)
+-- Title: Mik's Combat Event Helper (ClassicAPI 1.17.7 combat log)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
@@ -15,7 +15,7 @@ local string_len, string_sub = string.len, string.sub
 local table_wipe = table.wipe
 local GetTime, UnitHealth, UnitHealthMax = GetTime, UnitHealth, UnitHealthMax
 local UnitMana, UnitManaMax, UnitName, UnitClass = UnitMana, UnitManaMax, UnitName, UnitClass
-local UnitIsFriend, UnitExists = UnitIsFriend, UnitExists
+local UnitIsFriend, UnitExists, UnitGUID = UnitIsFriend, UnitExists, UnitGUID
 local UnitPowerType, GetComboPoints = UnitPowerType, GetComboPoints
 local GetSpellInfo = GetSpellInfo
 local pairs, tonumber, type, pcall = pairs, tonumber, type, pcall
@@ -110,64 +110,45 @@ MikCEH.TRIGGERTYPE_YOU_DODGE		= 8;
 MikCEH.TRIGGERTYPE_YOU_PARRY		= 9;
 MikCEH.TRIGGERTYPE_TARGET_DODGES	= 10;
 
--- Hit info bit flags.
-local HITINFO_CRITICALHIT = 128;
-local HITINFO_CRUSHING    = 32768;
-local HITINFO_GLANCING    = 16384;
+-- Combat log values (ClassicAPI 1.17 COMBAT_LOG_EVENT_UNFILTERED).
+local SCHOOL_TO_TYPE = {
+ [1] = MikCEH.DAMAGETYPE_PHYSICAL,
+ [2] = MikCEH.DAMAGETYPE_HOLY,
+ [4] = MikCEH.DAMAGETYPE_FIRE,
+ [8] = MikCEH.DAMAGETYPE_NATURE,
+ [16] = MikCEH.DAMAGETYPE_FROST,
+ [32] = MikCEH.DAMAGETYPE_SHADOW,
+ [64] = MikCEH.DAMAGETYPE_ARCANE,
+};
 
--- Lookup tables for NamPower event fields.
-local nampowerVictimStateToAction = {
- [0] = MikCEH.ACTIONTYPE_MISS,
- [1] = MikCEH.ACTIONTYPE_HIT,
- [2] = MikCEH.ACTIONTYPE_DODGE,
- [3] = MikCEH.ACTIONTYPE_PARRY,
- [4] = MikCEH.ACTIONTYPE_HIT,
- [5] = MikCEH.ACTIONTYPE_BLOCK,
- [6] = MikCEH.ACTIONTYPE_EVADE,
- [7] = MikCEH.ACTIONTYPE_IMMUNE,
- [8] = MikCEH.ACTIONTYPE_PARRY, -- deflect
-}
+local MISS_TO_ACTION = {
+ MISS = MikCEH.ACTIONTYPE_MISS,
+ RESIST = MikCEH.ACTIONTYPE_RESIST,
+ DODGE = MikCEH.ACTIONTYPE_DODGE,
+ PARRY = MikCEH.ACTIONTYPE_PARRY,
+ DEFLECT = MikCEH.ACTIONTYPE_PARRY,
+ BLOCK = MikCEH.ACTIONTYPE_BLOCK,
+ EVADE = MikCEH.ACTIONTYPE_EVADE,
+ IMMUNE = MikCEH.ACTIONTYPE_IMMUNE,
+ ABSORB = MikCEH.ACTIONTYPE_ABSORB,
+ REFLECT = MikCEH.ACTIONTYPE_REFLECT,
+};
 
-local nampowerMissToAction = {
- [0] = MikCEH.ACTIONTYPE_MISS,
- [1] = MikCEH.ACTIONTYPE_MISS,
- [2] = MikCEH.ACTIONTYPE_RESIST,
- [3] = MikCEH.ACTIONTYPE_DODGE,
- [4] = MikCEH.ACTIONTYPE_PARRY,
- [5] = MikCEH.ACTIONTYPE_BLOCK,
- [6] = MikCEH.ACTIONTYPE_EVADE,
- [7] = MikCEH.ACTIONTYPE_IMMUNE,
- [8] = MikCEH.ACTIONTYPE_IMMUNE,
- [9] = MikCEH.ACTIONTYPE_PARRY, -- deflect
- [10] = MikCEH.ACTIONTYPE_ABSORB,
- [11] = MikCEH.ACTIONTYPE_REFLECT,
-}
+local ENVIRONMENT_TO_ACTION = {
+ FATIGUE = MikCEH.ACTIONTYPE_FATIGUE,
+ DROWNING = MikCEH.ACTIONTYPE_DROWNING,
+ FALLING = MikCEH.ACTIONTYPE_FALLING,
+ LAVA = MikCEH.ACTIONTYPE_LAVA,
+ SLIME = MikCEH.ACTIONTYPE_SLIME,
+ FIRE = MikCEH.ACTIONTYPE_FIRE,
+};
 
-local nampowerEnvToAction = {
- [0] = MikCEH.ACTIONTYPE_FATIGUE,
- [1] = MikCEH.ACTIONTYPE_DROWNING,
- [2] = MikCEH.ACTIONTYPE_FALLING,
- [3] = MikCEH.ACTIONTYPE_LAVA,
- [4] = MikCEH.ACTIONTYPE_SLIME,
- [5] = MikCEH.ACTIONTYPE_FIRE,
-}
-
-local nampowerSchoolToType = {
- [0] = MikCEH.DAMAGETYPE_PHYSICAL,
- [1] = MikCEH.DAMAGETYPE_HOLY,
- [2] = MikCEH.DAMAGETYPE_FIRE,
- [3] = MikCEH.DAMAGETYPE_NATURE,
- [4] = MikCEH.DAMAGETYPE_FROST,
- [5] = MikCEH.DAMAGETYPE_SHADOW,
- [6] = MikCEH.DAMAGETYPE_ARCANE,
-}
-
-local nampowerPowerTypeToString = {
+-- Enum.PowerType values MSBT shows.
+local POWER_TYPE_TO_STRING = {
  [0] = MANA,
  [1] = RAGE,
- [2] = nil,
  [3] = ENERGY,
-}
+};
 
 -------------------------------------------------------------------------------------
 -- Private variables.
@@ -175,8 +156,8 @@ local nampowerPowerTypeToString = {
 
 local playerClass = nil;
 
--- GUIDs of the player and pet, refreshed on world entry and UNIT_PET. Every
--- NamPower event is matched against them, so the compare stays a plain ==.
+-- GUIDs of the player and pet, refreshed on world entry, enable and UNIT_PET.
+-- Every combat log event is matched against them with a plain ==.
 local playerGUID = nil;
 local petGUID = nil;
 
@@ -193,8 +174,7 @@ local selfManaTriggers = {};
 local petHealthTriggers = {};
 local enemyHealthTriggers = {};
 local friendlyHealthTriggers = {};
--- Event triggers: aura gains by aura name, and dodges/parries from the melee
--- and spell-miss events MSBT already handles.
+-- Event triggers: aura gains by aura name, and dodges/parries from misses.
 local auraGainTriggers = {};
 local youDodgeTriggers = {};
 local youParryTriggers = {};
@@ -228,19 +208,15 @@ local searchTriggers = {};
 local searchFrame;
 local searchFilter;
 
-local nampowerEventFrame = nil;
 local combatLogFrame = nil;
-local nampowerHandlers = {};
 
 -------------------------------------------------------------------------------------
 -- Helpers
 -------------------------------------------------------------------------------------
 
 local function RefreshGUIDs()
- local _, guid = UnitExists("player");
- playerGUID = guid;
- local exists, pet = UnitExists("pet");
- petGUID = exists and pet or nil;
+ playerGUID = UnitGUID("player");
+ petGUID = UnitGUID("pet");
 end
 
 local function IsPlayerGUID(guid)
@@ -249,11 +225,6 @@ end
 
 local function IsPetGUID(guid)
  return guid ~= nil and guid == petGUID
-end
-
-local function GetNameFromGUID(guid)
- if not guid or guid == "" or not UnitExists(guid) then return nil end
- return UnitName(guid);
 end
 
 local function GetCombatDirection(casterGuid, targetGuid)
@@ -276,8 +247,7 @@ local function FireTriggers(triggers)
  end
 end
 
--- dodged/parried: victim avoided the attack. NamPower uses 2/3 for melee
--- victim states and 3/4 for spell misses; deflects do not count.
+-- Dodge and parry triggers: you avoided an attack, or your target dodged.
 local function FireAvoidTriggers(directionType, dodged, parried)
  if (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING) then
   if dodged then FireTriggers(youDodgeTriggers) elseif parried then FireTriggers(youParryTriggers) end
@@ -309,331 +279,205 @@ function MikCEH.GetSpellIcon(spellId)
  return spellIcons[spellId] or nil;
 end
 
-local function SchoolToDamageType(school)
- if not school then return MikCEH.DAMAGETYPE_PHYSICAL end
- return nampowerSchoolToType[school] or MikCEH.DAMAGETYPE_PHYSICAL
-end
-
-local function ParseNampowerMitigation(mitigationStr, eventData)
- if not mitigationStr or mitigationStr == "" then return end
- local _, _, a, b, r = string_find(mitigationStr, "^([^,]*),([^,]*),([^,]*)$")
- local absorb = tonumber(a)
- local block = tonumber(b)
- local resist = tonumber(r)
-
- if absorb and absorb > 0 then
-  if eventData.Amount == 0 then
-   eventData.ActionType = MikCEH.ACTIONTYPE_ABSORB
-   eventData.PartialActionType = nil
-  else
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_ABSORB
-   eventData.PartialAmount = absorb
-  end
- elseif block and block > 0 then
-  if eventData.Amount == 0 then
-   eventData.ActionType = MikCEH.ACTIONTYPE_BLOCK
-   eventData.PartialActionType = nil
-  else
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_BLOCK
-   eventData.PartialAmount = block
-  end
- elseif resist and resist > 0 then
-  if eventData.Amount == 0 then
-   eventData.ActionType = MikCEH.ACTIONTYPE_RESIST
-   eventData.PartialActionType = nil
-  else
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_RESIST
-   eventData.PartialAmount = resist
-  end
- end
-end
-
 -------------------------------------------------------------------------------------
--- NamPower Binary Event Handlers (Strictly Scoped to Player and Pet)
+-- Combat log handlers. Each gets the source and destination GUIDs; the other
+-- values are in the c*/v* locals, numbered as ClassicAPI documents them.
 -------------------------------------------------------------------------------------
 
-nampowerHandlers["SPELL_DAMAGE_EVENT_SELF"] = function()
- local targetGuid, casterGuid = arg1, arg2
- local spellId = arg3
- local damage = tonumber(arg4) or 0
- local mitigationStr = arg5
- local hitInfo = tonumber(arg6) or 0
- local spellSchool = arg7
- local effectAuraStr = arg8
+-- Values of the combat log event being handled, from CombatLogGetCurrentEventInfo.
+local cSubevent, cSourceName, cDestName, cDestFlags;
+local v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23;
 
- local directionType = GetCombatDirection(casterGuid, targetGuid);
- if not directionType then return end;
+local combatLogHandlers = {};
 
- local spellName = GetSpellNameFromId(spellId)
- local damageType = SchoolToDamageType(spellSchool)
- local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
- local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
-
- local isDoT = false
- if effectAuraStr then
-  local _, _, auraTypeStr = string_find(effectAuraStr, "%d+,%d+,%d+,(%d+)")
-  local auraType = tonumber(auraTypeStr)
-  if auraType == 3 or auraType == 89 then isDoT = true end
+-- Name of the other unit: the attacker for incoming events, else the target.
+local function OtherName(directionType)
+ if (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) then
+  return cSourceName;
  end
-
- local hitType = MikCEH.HITTYPE_NORMAL
- if isDoT then
-  hitType = MikCEH.HITTYPE_OVER_TIME
- elseif bit_band(hitInfo, 2) ~= 0 then
-  hitType = MikCEH.HITTYPE_CRIT
- end
-
- local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, hitType, damageType, damage, spellName, targetName)
- eventData.SpellId = spellId
- eventData.IsCrit = bit_band(hitInfo, 2) ~= 0;
- ParseNampowerMitigation(mitigationStr, eventData)
- SetCombatIdentity(eventData, casterGuid, targetGuid);
- MikCEH.SendEvent(eventData)
+ return cDestName;
 end
 
-nampowerHandlers["SPELL_DAMAGE_EVENT_OTHER"] = nampowerHandlers["SPELL_DAMAGE_EVENT_SELF"];
+local function Damage(sourceGUID, destGUID, spellId, spellName, amount, school, resisted, blocked, absorbed, critical, glancing, crushing, periodic)
+ local directionType = GetCombatDirection(sourceGUID, destGUID);
+ if not directionType then return end
 
-nampowerHandlers["AUTO_ATTACK_SELF"] = function()
- local casterGuid, targetGuid = arg1, arg2
- local damage = tonumber(arg3) or 0
- local hitInfo = tonumber(arg4) or 0
- local victimState = tonumber(arg5)
- local blockedDmg = tonumber(arg7) or 0
- local absorbedDmg = tonumber(arg8) or 0
- local resistedDmg = tonumber(arg9) or 0
+ local hitType = MikCEH.HITTYPE_NORMAL;
+ if periodic then hitType = MikCEH.HITTYPE_OVER_TIME elseif critical then hitType = MikCEH.HITTYPE_CRIT end
+ amount = amount or 0;
+ local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, hitType,
+   SCHOOL_TO_TYPE[school] or MikCEH.DAMAGETYPE_PHYSICAL, amount, spellName, OtherName(directionType));
+ eventData.SpellId = spellId;
+ eventData.IsCrit = critical and true or nil;
 
- local directionType = GetCombatDirection(casterGuid, targetGuid);
- if not directionType then return end;
-
- local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
- local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
- FireAvoidTriggers(directionType, victimState == 2, victimState == 3);
-
- local actionType = nampowerVictimStateToAction[victimState]
- if absorbedDmg > 0 and damage == 0 then
-  actionType = MikCEH.ACTIONTYPE_ABSORB
- elseif blockedDmg > 0 and damage > 0 then
-  actionType = MikCEH.ACTIONTYPE_HIT
- elseif not actionType then
-  actionType = (damage > 0) and MikCEH.ACTIONTYPE_HIT or MikCEH.ACTIONTYPE_MISS
+ -- One partial effect: crushing/glancing, then absorbed, blocked, resisted.
+ if crushing then
+  eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_CRUSHING;
+ elseif glancing then
+  eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_GLANCING;
+ elseif absorbed then
+  eventData.PartialActionType, eventData.PartialAmount = MikCEH.PARTIALACTIONTYPE_ABSORB, absorbed;
+ elseif blocked then
+  eventData.PartialActionType, eventData.PartialAmount = MikCEH.PARTIALACTIONTYPE_BLOCK, blocked;
+ elseif resisted then
+  eventData.PartialActionType, eventData.PartialAmount = MikCEH.PARTIALACTIONTYPE_RESIST, resisted;
+ end
+ if (amount == 0 and absorbed) then
+  eventData.ActionType, eventData.PartialActionType = MikCEH.ACTIONTYPE_ABSORB, nil;
  end
 
- if actionType ~= MikCEH.ACTIONTYPE_HIT then
-  local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, nil, targetName)
-  SetCombatIdentity(eventData, casterGuid, targetGuid);
- MikCEH.SendEvent(eventData)
-  return
- end
-
- local hitType = MikCEH.HITTYPE_NORMAL
- if hitInfo and bit_band then
-  if bit_band(hitInfo, HITINFO_CRITICALHIT) ~= 0 then
-   hitType = MikCEH.HITTYPE_CRIT
-  end
- end
-
- local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, hitType, MikCEH.DAMAGETYPE_PHYSICAL, damage, nil, targetName)
-
- if hitInfo and bit_band then
-  if bit_band(hitInfo, HITINFO_CRUSHING) ~= 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_CRUSHING
-  elseif bit_band(hitInfo, HITINFO_GLANCING) ~= 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_GLANCING
-  end
- end
-
- if not eventData.PartialActionType then
-  if absorbedDmg > 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_ABSORB
-   eventData.PartialAmount = absorbedDmg
-  elseif blockedDmg > 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_BLOCK
-   eventData.PartialAmount = blockedDmg
-  elseif resistedDmg > 0 then
-   eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_RESIST
-   eventData.PartialAmount = resistedDmg
-  end
- end
-
- SetCombatIdentity(eventData, casterGuid, targetGuid);
- MikCEH.SendEvent(eventData)
-end
-
-nampowerHandlers["AUTO_ATTACK_OTHER"] = nampowerHandlers["AUTO_ATTACK_SELF"];
-
-local function HandleSpellHeal()
- local targetGuid, casterGuid = arg1, arg2;
- local directionType = GetCombatDirection(casterGuid, targetGuid);
- if not directionType then return end;
- local healType = MikCEH.HEALTYPE_NORMAL;
- if tonumber(arg6) == 1 then healType = MikCEH.HEALTYPE_OVER_TIME;
- elseif tonumber(arg5) == 1 then healType = MikCEH.HEALTYPE_CRIT; end
- local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
- local eventData = MikCEH.GetHealEventData(directionType, healType, tonumber(arg4) or 0,
-   GetSpellNameFromId(arg3), GetNameFromGUID(incoming and casterGuid or targetGuid));
- eventData.SpellId = arg3;
- eventData.IsCrit = tonumber(arg5) == 1;
- SetCombatIdentity(eventData, casterGuid, targetGuid);
- -- NamPower 4.6.2 has no effective-heal/overheal field or guaranteed health-update ordering.
+ SetCombatIdentity(eventData, sourceGUID, destGUID);
  MikCEH.SendEvent(eventData);
 end
 
-nampowerHandlers["SPELL_HEAL_ON_SELF"] = HandleSpellHeal;
-nampowerHandlers["SPELL_HEAL_BY_SELF"] = function()
- if IsPlayerGUID(arg1) then return end; -- The provider also emits ON_SELF for this heal.
- HandleSpellHeal();
-end
-nampowerHandlers["SPELL_HEAL_BY_OTHER"] = nampowerHandlers["SPELL_HEAL_BY_SELF"];
+local function Miss(sourceGUID, destGUID, spellId, spellName, missType)
+ local directionType = GetCombatDirection(sourceGUID, destGUID);
+ if not directionType then return end
+ FireAvoidTriggers(directionType, missType == "DODGE", missType == "PARRY");
 
-nampowerHandlers["SPELL_ENERGIZE_ON_SELF"] = function()
- local spellId = arg3
- local powerType = tonumber(arg4) or 0
- local amount = tonumber(arg5) or 0
-
- local powerTypeStr = nampowerPowerTypeToString[powerType]
- if not powerTypeStr then return end
-
- local spellName = GetSpellNameFromId(spellId)
- local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_GAIN, amount, powerTypeStr, spellName)
- eventData.SpellId = spellId
- eventData.IsSpellManaGain = powerType == 0;
-
- MikCEH.SendEvent(eventData)
+ local eventData = MikCEH.GetDamageEventData(directionType, MISS_TO_ACTION[missType] or MikCEH.ACTIONTYPE_MISS,
+   nil, nil, nil, spellName, OtherName(directionType));
+ eventData.SpellId = spellId;
+ SetCombatIdentity(eventData, sourceGUID, destGUID);
+ MikCEH.SendEvent(eventData);
 end
 
-nampowerHandlers["SPELL_MISS_SELF"] = function()
- local casterGuid, targetGuid = arg1, arg2
- local spellId = arg3
- local missInfo = tonumber(arg4) or 0
-
- local directionType = GetCombatDirection(casterGuid, targetGuid);
- if not directionType then return end;
-
- local spellName = GetSpellNameFromId(spellId)
- local incoming = directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING;
- local targetName = GetNameFromGUID(incoming and casterGuid or targetGuid)
- FireAvoidTriggers(directionType, missInfo == 3, missInfo == 4);
-
- local actionType = nampowerMissToAction[missInfo] or MikCEH.ACTIONTYPE_MISS
-
- local eventData = MikCEH.GetDamageEventData(directionType, actionType, nil, nil, nil, spellName, targetName)
- eventData.SpellId = spellId
-
- SetCombatIdentity(eventData, casterGuid, targetGuid);
- MikCEH.SendEvent(eventData)
+-- Melee: amount, overkill, school, resisted, blocked, absorbed, critical, glancing, crushing.
+combatLogHandlers.SWING_DAMAGE = function(sourceGUID, destGUID)
+ Damage(sourceGUID, destGUID, nil, nil, v12, v14, v15, v16, v17, v18, v19, v20);
+end
+combatLogHandlers.SWING_MISSED = function(sourceGUID, destGUID)
+ Miss(sourceGUID, destGUID, nil, nil, v12);
 end
 
-nampowerHandlers["SPELL_MISS_OTHER"] = nampowerHandlers["SPELL_MISS_SELF"];
-
-nampowerHandlers["DAMAGE_SHIELD_SELF"] = function()
- -- NamPower 4.6.2+: shield owner, damaged attacker, damage, school; no spell ID.
- local casterGuid, targetGuid = arg1, arg2
- local damage = tonumber(arg3) or 0
- local spellSchool = arg4
-
- local directionType = GetCombatDirection(casterGuid, targetGuid);
- if not directionType then return end;
-
- local spellName = "Damage Shield"
- local damageType = SchoolToDamageType(spellSchool)
- local name = (directionType == MikCEH.DIRECTIONTYPE_PLAYER_INCOMING or directionType == MikCEH.DIRECTIONTYPE_PET_INCOMING) and GetNameFromGUID(casterGuid) or (GetNameFromGUID(targetGuid))
-
- local eventData = MikCEH.GetDamageEventData(directionType, MikCEH.ACTIONTYPE_HIT, MikCEH.HITTYPE_NORMAL, damageType, damage, spellName, name)
- SetCombatIdentity(eventData, casterGuid, targetGuid);
- MikCEH.SendEvent(eventData)
+-- Spells, ranged and damage shields: spellId, spellName, school, then the damage suffix.
+local function SpellDamage(sourceGUID, destGUID)
+ Damage(sourceGUID, destGUID, v12, v13, v15, v17, v18, v19, v20, v21, v22, v23, cSubevent == "SPELL_PERIODIC_DAMAGE");
+end
+combatLogHandlers.SPELL_DAMAGE = SpellDamage;
+combatLogHandlers.SPELL_PERIODIC_DAMAGE = SpellDamage;
+combatLogHandlers.RANGE_DAMAGE = SpellDamage;
+combatLogHandlers.DAMAGE_SPLIT = SpellDamage;
+-- A damage shield names no spell.
+combatLogHandlers.DAMAGE_SHIELD = function(sourceGUID, destGUID)
+ Damage(sourceGUID, destGUID, nil, "Damage Shield", v15, v17, v18, v19, v20);
 end
 
-nampowerHandlers["DAMAGE_SHIELD_OTHER"] = nampowerHandlers["DAMAGE_SHIELD_SELF"];
+local function SpellMiss(sourceGUID, destGUID)
+ Miss(sourceGUID, destGUID, v12, v13, v15);
+end
+combatLogHandlers.SPELL_MISSED = SpellMiss;
+combatLogHandlers.SPELL_PERIODIC_MISSED = SpellMiss;
+combatLogHandlers.RANGE_MISSED = SpellMiss;
+combatLogHandlers.DAMAGE_SHIELD_MISSED = function(sourceGUID, destGUID)
+ Miss(sourceGUID, destGUID, nil, "Damage Shield", v15);
+end
 
-nampowerHandlers["ENVIRONMENTAL_DMG_SELF"] = function()
- local targetGuid = arg1
- local envType = tonumber(arg2) or 2
- local damage = tonumber(arg3) or 0
- local absorbed = tonumber(arg4) or 0
- local resisted = tonumber(arg5) or 0
-
- if not IsPlayerGUID(targetGuid) and not IsPetGUID(targetGuid) then return end
-
- local actionType = nampowerEnvToAction[envType] or MikCEH.ACTIONTYPE_FALLING
- local eventData = MikCEH.GetDamageEventData(MikCEH.DIRECTIONTYPE_PLAYER_INCOMING, actionType, MikCEH.HITTYPE_NORMAL, MikCEH.DAMAGETYPE_PHYSICAL, damage, nil, nil)
-
- if absorbed > 0 then
-  eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_ABSORB
-  eventData.PartialAmount = absorbed
- elseif resisted > 0 then
-  eventData.PartialActionType = MikCEH.PARTIALACTIONTYPE_RESIST
-  eventData.PartialAmount = resisted
+-- Environment: type, then amount, overkill, school, resisted, blocked, absorbed.
+combatLogHandlers.ENVIRONMENTAL_DAMAGE = function(sourceGUID, destGUID)
+ if (destGUID ~= playerGUID) then return end
+ local eventData = MikCEH.GetDamageEventData(MikCEH.DIRECTIONTYPE_PLAYER_INCOMING,
+   ENVIRONMENT_TO_ACTION[v12] or MikCEH.ACTIONTYPE_FALLING, MikCEH.HITTYPE_NORMAL, MikCEH.DAMAGETYPE_PHYSICAL, v13 or 0);
+ if v18 then
+  eventData.PartialActionType, eventData.PartialAmount = MikCEH.PARTIALACTIONTYPE_ABSORB, v18;
+ elseif v16 then
+  eventData.PartialActionType, eventData.PartialAmount = MikCEH.PARTIALACTIONTYPE_RESIST, v16;
  end
-
- MikCEH.SendEvent(eventData)
+ MikCEH.SendEvent(eventData);
 end
 
-nampowerHandlers["BUFF_ADDED_SELF"] = function()
- local unitGuid = arg1
- local spellId = arg3
- if not IsPlayerGUID(unitGuid) then return end
+-- Heals: amount, overhealing (always 0), absorbed, critical.
+local function Heal(sourceGUID, destGUID)
+ local directionType = GetCombatDirection(sourceGUID, destGUID);
+ if not directionType then return end
+ local healType = MikCEH.HEALTYPE_NORMAL;
+ if (cSubevent == "SPELL_PERIODIC_HEAL") then healType = MikCEH.HEALTYPE_OVER_TIME elseif v18 then healType = MikCEH.HEALTYPE_CRIT end
+ local eventData = MikCEH.GetHealEventData(directionType, healType, v15 or 0, v13, OtherName(directionType));
+ eventData.SpellId = v12;
+ eventData.IsCrit = v18 and true or nil;
+ SetCombatIdentity(eventData, sourceGUID, destGUID);
+ MikCEH.SendEvent(eventData);
+end
+combatLogHandlers.SPELL_HEAL = Heal;
+combatLogHandlers.SPELL_PERIODIC_HEAL = Heal;
 
- local spellName = GetSpellNameFromId(spellId)
+-- Power you gain: amount, powerType.
+local function Energize(sourceGUID, destGUID)
+ if (destGUID ~= playerGUID) then return end
+ local powerType = tonumber(v16);
+ local powerTypeStr = POWER_TYPE_TO_STRING[powerType];
+ if not powerTypeStr then return end
+ local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_GAIN, v15 or 0, powerTypeStr, v13);
+ eventData.SpellId = v12;
+ eventData.IsSpellManaGain = powerType == 0;
+ MikCEH.SendEvent(eventData);
+end
+combatLogHandlers.SPELL_ENERGIZE = Energize;
+combatLogHandlers.SPELL_PERIODIC_ENERGIZE = Energize;
+
+-- Power taken from you: amount, powerType.
+local function Drain(sourceGUID, destGUID)
+ if (destGUID ~= playerGUID) then return end
+ local powerTypeStr = POWER_TYPE_TO_STRING[tonumber(v16)];
+ local amount = tonumber(v15) or 0;
+ if (powerTypeStr and amount > 0) then
+  local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_LOSS, amount, powerTypeStr, v13);
+  eventData.SpellId = v12;
+  MikCEH.SendEvent(eventData);
+ end
+end
+combatLogHandlers.SPELL_DRAIN = Drain;
+combatLogHandlers.SPELL_PERIODIC_DRAIN = Drain;
+combatLogHandlers.SPELL_LEECH = Drain;
+combatLogHandlers.SPELL_PERIODIC_LEECH = Drain;
+
+-- Your auras: spellId, spellName, school, auraType ("BUFF"/"DEBUFF"). A stack
+-- gain shows again like a new aura; a stack loss (REMOVED_DOSE) is not a fade.
+local function AuraGained(sourceGUID, destGUID)
+ if (destGUID ~= playerGUID) then return end
+ local spellName = v13 or GetSpellNameFromId(v12);
  if not spellName then return end
-
- -- arg7 0: newly added (not a stack change).
- local triggers = auraGainTriggers[spellName];
- if (triggers and tonumber(arg7) == 0) then FireTriggers(triggers) end
-
- local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_BUFF, nil, spellName)
- eventData.SpellId = spellId
- MikCEH.SendEvent(eventData)
+ if (cSubevent == "SPELL_AURA_APPLIED" and auraGainTriggers[spellName]) then FireTriggers(auraGainTriggers[spellName]) end
+ local notificationType = (v15 == "DEBUFF") and MikCEH.NOTIFICATIONTYPE_DEBUFF or MikCEH.NOTIFICATIONTYPE_BUFF;
+ local eventData = MikCEH.GetNotificationEventData(notificationType, nil, spellName);
+ eventData.SpellId = v12;
+ MikCEH.SendEvent(eventData);
 end
-
-nampowerHandlers["DEBUFF_ADDED_SELF"] = function()
- local unitGuid = arg1
- local spellId = arg3
- if not IsPlayerGUID(unitGuid) then return end
-
- local spellName = GetSpellNameFromId(spellId)
+combatLogHandlers.SPELL_AURA_APPLIED = AuraGained;
+combatLogHandlers.SPELL_AURA_APPLIED_DOSE = AuraGained;
+combatLogHandlers.SPELL_AURA_REMOVED = function(sourceGUID, destGUID)
+ if (destGUID ~= playerGUID) then return end
+ local spellName = v13 or GetSpellNameFromId(v12);
  if not spellName then return end
-
- local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_DEBUFF, nil, spellName)
- eventData.SpellId = spellId
- MikCEH.SendEvent(eventData)
+ local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_BUFF_FADE, nil, spellName);
+ eventData.SpellId = v12;
+ MikCEH.SendEvent(eventData);
 end
 
--- NamPower aura state (arg7): 0 = added, 1 = removed, 2 = stack change.
--- A *_REMOVED_* event with state 2 is a stack decrease; the aura is still active.
-local AURA_STATE_MODIFIED = 2
-
-nampowerHandlers["BUFF_REMOVED_SELF"] = function()
- local unitGuid = arg1
- local spellId = arg3
- if tonumber(arg7) == AURA_STATE_MODIFIED then return end
- if not IsPlayerGUID(unitGuid) then return end
-
- local spellName = GetSpellNameFromId(spellId)
- if not spellName then return end
-
- local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_BUFF_FADE, nil, spellName)
- eventData.SpellId = spellId
- MikCEH.SendEvent(eventData)
+-- Killing blows: the victim's flags say whether it was a player.
+combatLogHandlers.PARTY_KILL = function(sourceGUID, destGUID)
+ if (sourceGUID ~= playerGUID) then return end
+ local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
+ if (bit_band(cDestFlags or 0, COMBATLOG_OBJECT_TYPE_PLAYER) ~= 0) then
+  notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
+ end
+ MikCEH.SendEvent(MikCEH.GetNotificationEventData(notificationType, nil, cDestName));
 end
 
-nampowerHandlers["DEBUFF_REMOVED_SELF"] = function()
- local unitGuid = arg1
- local spellId = arg3
- if tonumber(arg7) == AURA_STATE_MODIFIED then return end
- if not IsPlayerGUID(unitGuid) then return end
-
- local spellName = GetSpellNameFromId(spellId)
- if not spellName then return end
-
- local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_BUFF_FADE, nil, spellName)
- eventData.SpellId = spellId
- MikCEH.SendEvent(eventData)
+-- The whole nearby combat stream arrives here; events that involve neither you
+-- nor your pet return after the GUID compares.
+function MikCEH.OnCombatLogEvent()
+ local sourceGUID, destGUID = arg4, arg8;
+ if (sourceGUID ~= playerGUID and destGUID ~= playerGUID and
+     (petGUID == nil or (sourceGUID ~= petGUID and destGUID ~= petGUID))) then return end
+ local handler = combatLogHandlers[arg2];
+ if not handler then return end
+ local _;
+ _, cSubevent, _, _, cSourceName, _, _, _, cDestName, cDestFlags, _,
+   v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23 = CombatLogGetCurrentEventInfo();
+ handler(sourceGUID, destGUID);
 end
 
-function MikCEH.OnNampowerEvent()
- local handler = nampowerHandlers[event]
- if handler then handler() end
-end
 
 -------------------------------------------------------------------------------------
 -- Core Helper Initialization & Lifecycle
@@ -643,11 +487,6 @@ function MikCEH.Init()
  local _;
  _, playerClass = UnitClass("player");
  RefreshGUIDs();
-
- -- NamPower sends these events only when its CVars are on.
- SetCVar("NP_EnableAutoAttackEvents", "1");
- SetCVar("NP_EnableSpellHealEvents", "1");
- SetCVar("NP_EnableSpellEnergizeEvents", "1");
 end
 
 function MikCEH.RegisterEvents()
@@ -668,25 +507,6 @@ function MikCEH.RegisterEvents()
  end
  if combatLogFrame then combatLogFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end
 
- if nampowerEventFrame then
-  nampowerEventFrame:RegisterEvent("SPELL_DAMAGE_EVENT_SELF");
-  nampowerEventFrame:RegisterEvent("SPELL_DAMAGE_EVENT_OTHER");
-  nampowerEventFrame:RegisterEvent("AUTO_ATTACK_SELF");
-  nampowerEventFrame:RegisterEvent("AUTO_ATTACK_OTHER");
-  nampowerEventFrame:RegisterEvent("SPELL_HEAL_BY_SELF");
-  nampowerEventFrame:RegisterEvent("SPELL_HEAL_BY_OTHER");
-  nampowerEventFrame:RegisterEvent("SPELL_HEAL_ON_SELF");
-  nampowerEventFrame:RegisterEvent("SPELL_ENERGIZE_ON_SELF");
-  nampowerEventFrame:RegisterEvent("SPELL_MISS_SELF");
-  nampowerEventFrame:RegisterEvent("SPELL_MISS_OTHER");
-  nampowerEventFrame:RegisterEvent("BUFF_ADDED_SELF");
-  nampowerEventFrame:RegisterEvent("BUFF_REMOVED_SELF");
-  nampowerEventFrame:RegisterEvent("DEBUFF_ADDED_SELF");
-  nampowerEventFrame:RegisterEvent("DEBUFF_REMOVED_SELF");
-  nampowerEventFrame:RegisterEvent("DAMAGE_SHIELD_SELF");
-  nampowerEventFrame:RegisterEvent("DAMAGE_SHIELD_OTHER");
-  nampowerEventFrame:RegisterEvent("ENVIRONMENTAL_DMG_SELF");
- end
  if searchFrame then
   for name in pairs(searchTriggers) do searchFrame:RegisterEvent(name) end
  end
@@ -709,9 +529,6 @@ function MikCEH.UnregisterEvents()
  end
  if combatLogFrame then combatLogFrame:UnregisterAllEvents() end
 
- if nampowerEventFrame then
-  nampowerEventFrame:UnregisterAllEvents();
- end
  if searchFrame then searchFrame:UnregisterAllEvents() end;
  MikCEH.ResetThresholdState();
 end
@@ -764,8 +581,6 @@ function MikCEH.OnLoad()
 
  searchFrame = CreateFrame("Frame");
  searchFrame:SetScript("OnEvent", MikCEH.OnSearchEvent);
- nampowerEventFrame = CreateFrame("Frame");
- nampowerEventFrame:SetScript("OnEvent", MikCEH.OnNampowerEvent);
  combatLogFrame = CreateFrame("Frame");
  combatLogFrame:SetScript("OnEvent", MikCEH.OnCombatLogEvent);
 
@@ -873,34 +688,6 @@ function MikCEH.OnEvent()
    MikCEH.SendEvent(eventData);
   end
 
- end
-end
-
--- Subevents that take power from the destination unit.
-local DRAIN_SUBEVENTS = {SPELL_DRAIN = true, SPELL_PERIODIC_DRAIN = true, SPELL_LEECH = true, SPELL_PERIODIC_LEECH = true};
-
--- The combat log gives killing blows (the victim's flags say whether it was a
--- player) and power drained from you. Events that do not involve you, the bulk
--- of the nearby combat stream, return at the first compare.
-function MikCEH.OnCombatLogEvent()
- if (arg4 ~= playerGUID and arg8 ~= playerGUID) then return end
- local subevent = arg2;
- if (subevent == "PARTY_KILL") then
-  if (arg4 ~= playerGUID) then return end
-  local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
-  if (bit_band(arg10 or 0, COMBATLOG_OBJECT_TYPE_PLAYER) ~= 0) then
-   notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
-  end
-  MikCEH.SendEvent(MikCEH.GetNotificationEventData(notificationType, nil, arg9));
- elseif (DRAIN_SUBEVENTS[subevent] and arg8 == playerGUID) then
-  -- spellId, spellName, school, then amount, powerType.
-  local powerTypeStr = nampowerPowerTypeToString[tonumber(arg16)];
-  local amount = tonumber(arg15) or 0;
-  if (powerTypeStr and amount > 0) then
-   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_POWER_LOSS, amount, powerTypeStr, arg13);
-   eventData.SpellId = arg12;
-   MikCEH.SendEvent(eventData);
-  end
  end
 end
 

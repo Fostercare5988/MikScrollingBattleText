@@ -39,14 +39,14 @@ the layout and displays samples; **Save Settings** accepts it. **Cancel** or Esc
 restores the previous layout and stops active drags. Dialogs scale down to fit the
 UI canvas; verify comfort/input at your chosen game resolution and UI scale.
 
-Player/pet damage and heals use structured NamPower events. Melee against different
+Player/pet damage and heals come from ClassicAPI's combat log. Melee against different
 GUIDs remains distinct even if names match; configured spell merging can combine
 targets and labels those results Multiple. Critical counts and totals are retained.
 Absorbs and immunity use distinct events. Damage shields supply no spell ID and
 use the generic Damage Shield name without an invented icon.
 
-**Healing amounts are total healing reported by NamPower.** No installed provider
-reports overheal, so MSBT shows none.
+**Healing amounts are total healing.** The combat log reports no overheal, so
+MSBT shows none.
 
 Killing blows come from the combat log: a player you killed counts as a player
 kill even if you never targeted them. Power Losses shows mana, rage or energy
@@ -87,5 +87,4 @@ Commands: `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`, `/msbt rese
 `/msbt search CHAT_MSG` enables diagnostic event text; `/msbt search` stops it.
 Leave diagnostic output off during frame-pacing tests.
 
-Requirements: ClassicAPI 1.17.7+, SuperWoW 2.2 and NamPower 4.6.2+.
-UnitXP is not required for MSBT healing. DLL updates require a full restart. Use your configured client launcher.
+Requirements: ClassicAPI 1.17.7+. SuperWoW, NamPower and UnitXP are not needed. DLL updates require a full restart. Use your configured client launcher.
