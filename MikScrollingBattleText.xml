@@ -6,7 +6,7 @@
  <Frame name="MSBTEventFrame">
   <Scripts>
    <OnEvent>MikSBT.OnEvent();</OnEvent>
-   <OnLoad>MikSBT.OnLoad();</OnLoad>
+   <OnLoad>if MSBT_REQUIREMENTS_MET then MikSBT.OnLoad() end</OnLoad>
   </Scripts>
  </Frame>
  

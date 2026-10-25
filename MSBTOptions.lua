@@ -5,12 +5,8 @@
 -- Built natively for ClassicAPI v1.16.0+, SuperWoW 2.2+, NamPower 4.6.2+
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.16.0+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11600
-if type(CLASSIC_API_VERSION) ~= "number" or not SUPERWOW_VERSION or
-   CLASSIC_API_VERSION < MIN_CLASSIC_API then
-	return
-end
+-- ClassicAPIRequirement.lua checks the DLLs.
+if not MSBT_REQUIREMENTS_MET then return end
 
 -------------------------------------------------------------------------------------
 -- Local Constants.

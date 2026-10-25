@@ -4,15 +4,8 @@
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------
 
--- Strict Engine Dependency Guard (Mandatory ClassicAPI v1.16.0+ & SuperWoW v2.2+)
-local MIN_CLASSIC_API = 11600
-if type(CLASSIC_API_VERSION) ~= "number" or not SUPERWOW_VERSION or
-   CLASSIC_API_VERSION < MIN_CLASSIC_API then
-	if DEFAULT_CHAT_FRAME then
-		DEFAULT_CHAT_FRAME:AddMessage("|cffff2020[MSBT Fatal Error]|r MikScrollingBattleText requires ClassicAPI (v1.16.0+) & SuperWoW (v2.2+)! Please ensure both DLLs are loaded.", 1, 0.2, 0.2)
-	end
-	return
-end
+-- ClassicAPIRequirement.lua checks the DLLs.
+if not MSBT_REQUIREMENTS_MET then return end
 
 -- Create namespace.
 MikCEH = {};
@@ -220,9 +213,6 @@ local lastPetHealthPercentage = 0;
 local lastEnemyHealthPercentage = 0;
 local lastFriendlyHealthPercentage = 0;
 
-local recentlySelectedPlayers = {};
-local MAX_RECENT_PLAYERS = 64;
-
 local TRIGGER_THROTTLE_INTERVAL = 0.15;
 local lastHealthTriggerCheckTime = {player = 0, target = 0, pet = 0};
 local lastManaTriggerCheckTime = 0;
@@ -245,6 +235,7 @@ local searchFrame;
 local searchFilter;
 
 local nampowerEventFrame = nil;
+local combatLogFrame = nil;
 local nampowerHandlers = {};
 
 -------------------------------------------------------------------------------------
@@ -636,19 +627,6 @@ end
 -- Core Helper Initialization & Lifecycle
 -------------------------------------------------------------------------------------
 
-local function RememberSelectedPlayer(name)
- local now, count, oldestName, oldestTime = GetTime(), 0, nil, nil;
- for pName, lastSeen in pairs(recentlySelectedPlayers) do
-  if now - lastSeen >= 60 then recentlySelectedPlayers[pName] = nil;
-  else
-   count = count + 1;
-   if not oldestTime or lastSeen < oldestTime then oldestName, oldestTime = pName, lastSeen end
-  end
- end
- if not recentlySelectedPlayers[name] and count >= MAX_RECENT_PLAYERS then recentlySelectedPlayers[oldestName] = nil end
- recentlySelectedPlayers[name] = now;
-end
-
 function MikCEH.Init()
  playerName = UnitName("player");
  _, playerClass = UnitClass("player");
@@ -688,11 +666,11 @@ function MikCEH.RegisterEvents()
   MCEHEventFrame:RegisterEvent("PLAYER_TARGET_CHANGED");
   MCEHEventFrame:RegisterEvent("UNIT_PET");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
-  MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE");
+  MCEHEventFrame:RegisterEvent("FACTION_STANDING_CHANGED");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_SKILL");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN");
-  MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_HOSTILE_DEATH");
  end
+ if combatLogFrame then combatLogFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end
 
  if nampowerEventFrame then
   nampowerEventFrame:RegisterEvent("SPELL_DAMAGE_EVENT_SELF");
@@ -729,17 +707,16 @@ function MikCEH.UnregisterEvents()
   MCEHEventFrame:UnregisterEvent("PLAYER_TARGET_CHANGED");
   MCEHEventFrame:UnregisterEvent("UNIT_PET");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
-  MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE");
+  MCEHEventFrame:UnregisterEvent("FACTION_STANDING_CHANGED");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_SKILL");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_XP_GAIN");
-  MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_HOSTILE_DEATH");
  end
+ if combatLogFrame then combatLogFrame:UnregisterAllEvents() end
 
  if nampowerEventFrame then
   nampowerEventFrame:UnregisterAllEvents();
  end
  if searchFrame then searchFrame:UnregisterAllEvents() end;
- table_wipe(recentlySelectedPlayers);
  MikCEH.ResetThresholdState();
 end
 
@@ -793,6 +770,8 @@ function MikCEH.OnLoad()
  searchFrame:SetScript("OnEvent", MikCEH.OnSearchEvent);
  nampowerEventFrame = CreateFrame("Frame");
  nampowerEventFrame:SetScript("OnEvent", MikCEH.OnNampowerEvent);
+ combatLogFrame = CreateFrame("Frame");
+ combatLogFrame:SetScript("OnEvent", MikCEH.OnCombatLogEvent);
 
  MikCEH.RegisterEvents();
 end
@@ -808,7 +787,6 @@ function MikCEH.OnEvent()
   RefreshGUIDs();
   table_wipe(spellNameCache); spellNameCacheSize = 0;
   table_wipe(globalStringInfoArray); globalStringInfoSize = 0;
-  table_wipe(recentlySelectedPlayers);
   MikCEH.ResetThresholdState();
 
  elseif (event == "PLAYER_REGEN_ENABLED") then
@@ -861,12 +839,6 @@ function MikCEH.OnEvent()
   lastHealthTriggerCheckTime.target = 0;
   if UnitIsFriend("player", "target") then MikCEH.ParseFriendlyHealthTriggers();
   else MikCEH.ParseEnemyHealthTriggers(); end
-  if (UnitExists("target") and UnitIsPlayer("target") and not UnitIsFriend("player", "target")) then
-   local targetName = UnitName("target");
-   if (targetName) then
-    RememberSelectedPlayer(targetName);
-   end
-  end
 
  elseif (event == "UNIT_PET" and arg1 == "player") then
   RefreshGUIDs();
@@ -887,17 +859,12 @@ function MikCEH.OnEvent()
    end
   end
 
- elseif (event == "CHAT_MSG_COMBAT_FACTION_CHANGE") then
-  local capturedData = MikCEH.GetCapturedData(arg1, "FACTION_STANDING_INCREASED", {"%f", "%a"});
-  if (capturedData ~= nil) then
-   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_REP_GAIN, capturedData.Amount, capturedData.FactionName);
-   MikCEH.SendEvent(eventData);
-  else
-   capturedData = MikCEH.GetCapturedData(arg1, "FACTION_STANDING_DECREASED", {"%f", "%a"});
-   if (capturedData ~= nil) then
-    local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_REP_LOSS, capturedData.Amount, capturedData.FactionName);
-    MikCEH.SendEvent(eventData);
-   end
+ elseif (event == "FACTION_STANDING_CHANGED") then
+  -- ClassicAPI: factionID, new standing, signed change.
+  local change = tonumber(arg3) or 0;
+  if (change ~= 0) then
+   local notificationType = (change > 0) and MikCEH.NOTIFICATIONTYPE_REP_GAIN or MikCEH.NOTIFICATIONTYPE_REP_LOSS;
+   MikCEH.SendEvent(MikCEH.GetNotificationEventData(notificationType, math.abs(change), (GetFactionInfoByID(arg1))));
   end
 
  elseif (event == "CHAT_MSG_SKILL") then
@@ -914,18 +881,18 @@ function MikCEH.OnEvent()
    MikCEH.SendEvent(eventData);
   end
 
- elseif (event == "CHAT_MSG_COMBAT_HOSTILE_DEATH") then
-  local capturedData = MikCEH.GetCapturedData(arg1, "SELFKILLOTHER", {"%n"});
-  if (capturedData ~= nil) then
-   local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
-   if ((UnitExists("target") and (UnitName("target") == capturedData.Name) and UnitIsPlayer("target")) or
-       (recentlySelectedPlayers[capturedData.Name] and GetTime() - recentlySelectedPlayers[capturedData.Name] < 60)) then
-    notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
-   end
-   local eventData = MikCEH.GetNotificationEventData(notificationType, nil, capturedData.Name);
-   MikCEH.SendEvent(eventData);
-  end
  end
+end
+
+-- Killing blows from the combat log: the victim's flags say whether it was a
+-- player. Every other subevent (the whole nearby combat stream) returns at once.
+function MikCEH.OnCombatLogEvent()
+ if (arg2 ~= "PARTY_KILL" or arg4 ~= playerGUID) then return end
+ local notificationType = MikCEH.NOTIFICATIONTYPE_NPC_KILLING_BLOW;
+ if (bit_band(arg10 or 0, COMBATLOG_OBJECT_TYPE_PLAYER) ~= 0) then
+  notificationType = MikCEH.NOTIFICATIONTYPE_PC_KILLING_BLOW;
+ end
+ MikCEH.SendEvent(MikCEH.GetNotificationEventData(notificationType, nil, arg9));
 end
 
 -------------------------------------------------------------------------------------

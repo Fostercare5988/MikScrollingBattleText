@@ -1,6 +1,6 @@
 ## X-Maintainer: Fostercare5988
 ## Interface: 11200
-## X-ClassicAPI-Min-Version: 1.16.0
+## X-ClassicAPI-Min-Version: 1.17.7
 ## Dependencies: !!!ClassicAPI
 ## Title: |cffff9e38Mik's Scrolling Battle Text|r |cffffd6a8[Fostercare5988]|r
 ## Notes: Scrolling combat text engineered for ClassicAPI, SuperWoW, and NamPower.

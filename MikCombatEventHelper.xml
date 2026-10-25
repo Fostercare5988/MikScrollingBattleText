@@ -6,7 +6,7 @@
  <Frame name="MCEHEventFrame">
   <Scripts>
    <OnEvent>MikCEH.OnEvent();</OnEvent>
-   <OnLoad>MikCEH.OnLoad();</OnLoad>
+   <OnLoad>if MSBT_REQUIREMENTS_MET then MikCEH.OnLoad() end</OnLoad>
   </Scripts>
  </Frame>
 </Ui>
