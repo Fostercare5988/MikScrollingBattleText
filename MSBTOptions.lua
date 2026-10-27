@@ -557,21 +557,21 @@ end
 local CLASSES = {"DRUID", "HUNTER", "MAGE", "PALADIN", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR"}
 local CLASS_LABELS = {DRUID = "Druid", HUNTER = "Hunter", MAGE = "Mage", PALADIN = "Paladin", PRIEST = "Priest",
  ROGUE = "Rogue", SHAMAN = "Shaman", WARLOCK = "Warlock", WARRIOR = "Warrior"}
-local EVENTS_PER_PAGE = 5
-
 local function CopyTable(t)
  return type(t) == "table" and MikSBT.CopyTable(t) or t
 end
 
 local function CreateTriggerEditor()
- local editor = UI.Window("MSBT_TriggerEditor", "Trigger", 460, 470)
+ local editor = UI.Window("MSBT_TriggerEditor", "Trigger", 460, 360)
  editor:SetPoint("TOP", UIParent, "CENTER", 280, 190)
  local work
 
  UI.Heading(editor, "Type", 28, -56)
  editor.type = Cycle("MSBT_TriggerType", editor, 28, -74, 220, function(step)
-  local count = table.getn(MikSBT.AVAILABLE_TRIGGER_TYPES)
-  work.TriggerType = (work.TriggerType - 1 + step + count) % count + 1
+  local types = MikSBT.AVAILABLE_TRIGGER_TYPES
+  local count, index = table.getn(types), 1
+  for i, info in ipairs(types) do if info.Type == work.TriggerType then index = i end end
+  work.TriggerType = types[(index - 1 + step + count) % count + 1].Type
   editor.Refresh()
  end)
  UI.Heading(editor, "Icon", 264, -56)
@@ -607,29 +607,6 @@ local function CreateTriggerEditor()
   if work.Stance == count then work.Stance = nil end
   editor.Refresh()
  end)
- editor.patternHeading = UI.Heading(editor, "Search patterns", 28, y - 100)
- editor.pattern1 = TextBox("MSBT_TriggerPattern1", editor, 28, y - 118, 198)
- editor.pattern2 = TextBox("MSBT_TriggerPattern2", editor, 234, y - 118, 198)
- UI.Tooltip(editor.pattern1, "A Lua pattern or a game text name, matched against the chat events below. Captures fill %1 to %9.")
- editor.eventsHeading = UI.Heading(editor, "Chat events", 28, y - 146)
- editor.events = {}
- editor.eventPage = 1
- for i = 1, EVENTS_PER_PAGE do
-  local row = i
-  editor.events[i] = UI.Switch("MSBT_TriggerEvent" .. i, editor, "", nil, 28, y - 164 - (i - 1) * 20, function(value)
-   local name = editor.events[row].eventName
-   local selected = {}
-   for _, event in ipairs(work.TriggerEvents or {}) do if event ~= name then table.insert(selected, event) end end
-   if value then table.insert(selected, name) end
-   work.TriggerEvents = selected
-  end, 360)
- end
- editor.eventPrev = UI.Button("MSBT_TriggerEventsPrev", editor, "<", 380, y - 146, 24, function()
-  editor.eventPage = editor.eventPage - 1; editor.Refresh()
- end, {ghost = true})
- editor.eventNext = UI.Button("MSBT_TriggerEventsNext", editor, ">", 408, y - 146, 24, function()
-  editor.eventPage = editor.eventPage + 1; editor.Refresh()
- end, {ghost = true})
 
  local save = UI.Button("MSBT_TriggerSave", editor, "Save", 0, 0, 120, function() editor.Save() end)
  save:ClearAllPoints(); save:SetPoint("BOTTOMLEFT", editor, "BOTTOMLEFT", 28, 18)
@@ -644,10 +621,11 @@ local function CreateTriggerEditor()
 
  function editor.Refresh()
   local triggerType = work.TriggerType
-  local isThreshold = triggerType < MikCEH.TRIGGERTYPE_SEARCH_PATTERN
-  local isSearch = triggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN
+  local isThreshold = triggerType <= MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH
   local isAura = triggerType == MikCEH.TRIGGERTYPE_AURA_GAIN
-  editor.type.text:SetText(MikSBT.AVAILABLE_TRIGGER_TYPES[triggerType].Name)
+  for _, info in ipairs(MikSBT.AVAILABLE_TRIGGER_TYPES) do
+   if info.Type == triggerType then editor.type.text:SetText(info.Name) end
+  end
   UI.Sync(editor.allClasses, work.Classes == nil)
   for key, widget in pairs(editor.classes) do
    UI.Sync(widget, work.Classes and work.Classes[key] or false, work.Classes ~= nil)
@@ -655,38 +633,19 @@ local function CreateTriggerEditor()
   for _, w in ipairs({editor.thresholdHeading, editor.threshold}) do Shown(w, isThreshold) end
   for _, w in ipairs({editor.auraHeading, editor.aura}) do Shown(w, isAura) end
   for _, w in ipairs({editor.stanceHeading, editor.stance}) do Shown(w, not isThreshold) end
-  for _, w in ipairs({editor.patternHeading, editor.pattern1, editor.pattern2, editor.eventsHeading, editor.eventPrev, editor.eventNext}) do Shown(w, isSearch) end
   if isThreshold then UI.SetSlider(editor.threshold, work.Threshold or 40) end
   local stances = MikSBT.AVAILABLE_STANCES
   editor.stance.text:SetText(stances[work.Stance or table.getn(stances)].Name)
-
-  local all = MikSBTOpt.TRIGGER_EVENTS
-  local pages = math.max(1, math.ceil(table.getn(all) / EVENTS_PER_PAGE))
-  editor.eventPage = math.max(1, math.min(editor.eventPage, pages))
-  UI.SetEnabled(editor.eventPrev, editor.eventPage > 1)
-  UI.SetEnabled(editor.eventNext, editor.eventPage < pages)
-  local chosen = {}
-  for _, event in ipairs(work.TriggerEvents or {}) do chosen[event] = true end
-  for i, widget in ipairs(editor.events) do
-   local name = all[(editor.eventPage - 1) * EVENTS_PER_PAGE + i]
-   widget.eventName = name
-   Shown(widget, isSearch and name ~= nil)
-   if name then widget.label:SetText(name); UI.Sync(widget, chosen[name] or false) end
-  end
-  editor:SetHeight(isSearch and 470 or (isThreshold and 330 or 360))
+  editor:SetHeight(isThreshold and 330 or 360)
  end
 
  function editor.Open(triggerKey)
   local trigger = Profile().Triggers[triggerKey]
   editor.key, editor.profile = triggerKey, Profile()
   work = CopyTable(trigger.TriggerSettings)
-  local patterns = work.SearchPatterns or {}
   editor.title:SetText(trigger.EventSettings.Message or "Trigger")
   editor.icon:SetText(trigger.Texture or "")
   editor.aura:SetText(work.AuraName or "")
-  editor.pattern1:SetText(patterns[1] or "")
-  editor.pattern2:SetText(patterns[2] or "")
-  editor.eventPage = 1
   editor.Refresh()
   editor:Show()
  end
@@ -696,7 +655,7 @@ local function CreateTriggerEditor()
   if not trigger then editor:Hide(); return end
   local triggerType = work.TriggerType
   local settings = {TriggerType = triggerType, Classes = work.Classes}
-  if triggerType < MikCEH.TRIGGERTYPE_SEARCH_PATTERN then
+  if triggerType <= MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH then
    settings.Threshold = work.Threshold or 40
   else
    settings.Stance = work.Stance
@@ -705,12 +664,6 @@ local function CreateTriggerEditor()
    end
    if triggerType == MikCEH.TRIGGERTYPE_AURA_GAIN then
     settings.AuraName = editor.aura:GetText()
-   elseif triggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN then
-    settings.TriggerEvents = work.TriggerEvents or {}
-    settings.SearchPatterns = {}
-    for _, box in ipairs({editor.pattern1, editor.pattern2}) do
-     if box:GetText() ~= "" then table.insert(settings.SearchPatterns, box:GetText()) end
-    end
    end
   end
   trigger.TriggerSettings = settings
@@ -748,7 +701,7 @@ local function BuildTriggers(page)
     refresh[6]()
    end)
   end)
-  UI.Tooltip(row.message, "%1 shows the health or mana amount, or a search pattern capture.")
+  UI.Tooltip(row.message, "%1 shows the health or mana amount.")
   row.swatch = Swatch("MSBT_TriggerRow" .. i .. "Color", row, function()
    PickColor(row.swatch, Trigger().EventSettings.FontSettings.Color)
   end)

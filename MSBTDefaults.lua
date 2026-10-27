@@ -22,7 +22,6 @@ MikSBT.COMMAND_RESET		= "reset";
 MikSBT.COMMAND_DISABLE		= "disable";
 MikSBT.COMMAND_ENABLE		= "enable";
 MikSBT.COMMAND_SHOWVER		= "version";
-MikSBT.COMMAND_SEARCH		= "search";
 MikSBT.COMMAND_HELP		= "help";
 
 MikSBT.COMMAND_USAGE = {
@@ -32,7 +31,6 @@ MikSBT.COMMAND_USAGE = {
  "  " .. MikSBT.COMMAND_DISABLE .. " - Disables the mod.",
  "  " .. MikSBT.COMMAND_ENABLE .. " - Enables the mod.",
  "  " .. MikSBT.COMMAND_SHOWVER .. " - Shows the current version.",
- "  " .. MikSBT.COMMAND_SEARCH .. " filter - Sets a filter for searching event types.",
  "  " .. MikSBT.COMMAND_HELP .. " - Show the command usage.",
 };
 
@@ -41,8 +39,6 @@ MikSBT.COMMAND_USAGE = {
 -- Output messages
 ------------------------------
 
-MikSBT.MSG_SEARCH_ENABLE			= "Event search mode has been enabled.  Searching for: ";
-MikSBT.MSG_SEARCH_DISABLE			= "Event search mode has been disabled.";
 MikSBT.MSG_DISABLE					= "The mod is now disabled.";
 MikSBT.MSG_ENABLE					= "The mod is now enabled.";
 MikSBT.MSG_HITS						= "Hits";
@@ -143,18 +139,18 @@ MikSBT.AVAILABLE_ANIMATION_STYLES = {
 -- Trigger info
 ------------------------------
 
--- Holds the available trigger types.
+-- The trigger types, in editor order. Type numbers are saved; 6 was the
+-- retired Search Pattern type (chat text), so it is skipped.
 MikSBT.AVAILABLE_TRIGGER_TYPES = {
- [1] = {Name="Self Health"},
- [2] = {Name="Self Mana"},
- [3] = {Name="Pet Health"},
- [4] = {Name="Enemy Target Health"},
- [5] = {Name="Friendly Target Health"},
- [6] = {Name="Search Pattern"},
- [7] = {Name="Aura Gained"},
- [8] = {Name="You Dodge"},
- [9] = {Name="You Parry"},
- [10] = {Name="Your Attack Dodged"},
+ {Type=1, Name="Self Health"},
+ {Type=2, Name="Self Mana"},
+ {Type=3, Name="Pet Health"},
+ {Type=4, Name="Enemy Target Health"},
+ {Type=5, Name="Friendly Target Health"},
+ {Type=7, Name="Aura Gained"},
+ {Type=8, Name="You Dodge"},
+ {Type=9, Name="You Parry"},
+ {Type=10, Name="Your Attack Dodged"},
 };
 
 

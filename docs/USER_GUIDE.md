@@ -39,7 +39,8 @@ the page.
 All combat text comes from ClassicAPI's combat log. Heals show the total; the
 log reports no overheal. Killing blows count a player kill even when you never
 targeted the player. Power Losses shows mana, rage or energy drained from you.
-Reputation changes show the faction and amount.
+Reputation changes show the faction and amount. Experience Gains shows every
+gain: kills, quests and exploring.
 
 ## Triggers
 
@@ -53,8 +54,6 @@ The editor sets the type, the classes it applies to, an icon path and:
   health): the percentage it fires below.
 - **Aura Gained**: the exact buff name, for example Clearcasting.
 - **You Dodge**, **You Parry**, **Your Attack Dodged**: no further setting.
-- **Search Pattern**: one or two Lua patterns (or game text names) and the chat
-  events they are matched against; captures fill `%1` to `%9`.
 
 All but the threshold types can require a stance or form. **Save** keeps the
 changes, **Cancel** drops them. The built-in Overpower, Riposte, Counterattack,
@@ -75,8 +74,6 @@ defaults, triggers and filters included. `/msbt reset` does the same.
 ## Commands and other addons
 
 `/msbt`, `/msbt enable`, `/msbt disable`, `/msbt version`, `/msbt reset`.
-`/msbt search CHAT_MSG` prints the chat events whose name contains the text, to
-help write Search Pattern triggers; `/msbt search` stops it.
 
 BigWigs and other addons can send text through `MikSBT.DisplayMessage`. MSBT
 leaves other addons' floating text and settings alone.

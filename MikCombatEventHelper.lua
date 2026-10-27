@@ -104,7 +104,7 @@ MikCEH.TRIGGERTYPE_SELF_MANA		= 2;
 MikCEH.TRIGGERTYPE_PET_HEALTH		= 3;
 MikCEH.TRIGGERTYPE_ENEMY_HEALTH		= 4;
 MikCEH.TRIGGERTYPE_FRIENDLY_HEALTH	= 5;
-MikCEH.TRIGGERTYPE_SEARCH_PATTERN	= 6;
+-- 6 was the retired Search Pattern type (chat text); saved numbers stay.
 MikCEH.TRIGGERTYPE_AURA_GAIN		= 7;
 MikCEH.TRIGGERTYPE_YOU_DODGE		= 8;
 MikCEH.TRIGGERTYPE_YOU_PARRY		= 9;
@@ -204,9 +204,8 @@ end
 local spellNames, spellIcons = {}, {};
 local spellCacheSize = 0;
 local MAX_CACHED_SPELLS = 256;
-local searchTriggers = {};
-local searchFrame;
-local searchFilter;
+-- Experience at the last PLAYER_XP_UPDATE; nil until the first one after login.
+local lastXP, lastXPMax;
 
 local combatLogFrame = nil;
 
@@ -491,7 +490,6 @@ end
 
 function MikCEH.RegisterEvents()
  RefreshGUIDs();
- if searchFilter then MikCEH.EnableEventSearching(searchFilter) end;
  if MCEHEventFrame then
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED");
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_DISABLED");
@@ -504,13 +502,10 @@ function MikCEH.RegisterEvents()
   MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
   MCEHEventFrame:RegisterEvent("FACTION_STANDING_CHANGED");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_SKILL");
-  MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN");
+  -- Every XP gain (kills, quests, exploration) as the change in UnitXP.
+  MCEHEventFrame:RegisterEvent("PLAYER_XP_UPDATE");
  end
  if combatLogFrame then combatLogFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end
-
- if searchFrame then
-  for name in pairs(searchTriggers) do searchFrame:RegisterEvent(name) end
- end
  MikCEH.ResetThresholdState();
 end
 
@@ -526,62 +521,17 @@ function MikCEH.UnregisterEvents()
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
   MCEHEventFrame:UnregisterEvent("FACTION_STANDING_CHANGED");
   MCEHEventFrame:UnregisterEvent("CHAT_MSG_SKILL");
-  MCEHEventFrame:UnregisterEvent("CHAT_MSG_COMBAT_XP_GAIN");
+  MCEHEventFrame:UnregisterEvent("PLAYER_XP_UPDATE");
  end
+ lastXP, lastXPMax = nil, nil;
  if combatLogFrame then combatLogFrame:UnregisterAllEvents() end
-
- if searchFrame then searchFrame:UnregisterAllEvents() end;
  MikCEH.ResetThresholdState();
-end
-
-function MikCEH.OnSearchEvent()
- if type(arg1) ~= "string" then return end;
- if searchFilter and string_find(event, searchFilter, 1, true) then
-  MikSBT.Print(event .. ": " .. arg1);
- end
- local triggers = searchTriggers[event];
- if not triggers then return end;
- for key, settings in pairs(triggers) do
-  for _, pattern in ipairs(settings.SearchPatterns or {}) do
-   local info = MikCEH.GetGlobalStringInfo(pattern);
-   local captures = {pcall(string_find, arg1, info and info.Search or pattern)};
-   if captures[1] and captures[2] then
-    local data = MikCEH.TriggerEventData;
-    MikCEH.EraseTable(data);
-    data.TriggerKey, data.NumCaptures = key, #captures - 3;
-    for i = 1, data.NumCaptures do
-     local position = info and info.ArgumentOrder[i] or i;
-     data["CapturedData" .. position] = captures[i+3];
-    end
-    MikCEH.SendTriggerEvent(data);
-    break;
-   end
-  end
- end
-end
-
-function MikCEH.EnableEventSearching(searchPattern)
- searchFilter = searchPattern;
- if searchFrame and not (MikSBT_Save and MikSBT_Save.UserDisabled) then
-  for _, name in ipairs(MikSBTOpt.TRIGGER_EVENTS) do searchFrame:RegisterEvent(name) end;
- end
-end
-function MikCEH.DisableEventSearching()
- searchFilter = nil;
- if searchFrame then
-  searchFrame:UnregisterAllEvents();
-  if not (MikSBT_Save and MikSBT_Save.UserDisabled) then
-   for name in pairs(searchTriggers) do searchFrame:RegisterEvent(name) end;
-  end
- end
 end
 
 function MikCEH.OnLoad()
  MCEHEventFrame:RegisterEvent("ADDON_LOADED");
  MCEHEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD");
 
- searchFrame = CreateFrame("Frame");
- searchFrame:SetScript("OnEvent", MikCEH.OnSearchEvent);
  combatLogFrame = CreateFrame("Frame");
  combatLogFrame:SetScript("OnEvent", MikCEH.OnCombatLogEvent);
 
@@ -597,6 +547,7 @@ function MikCEH.OnEvent()
 
  elseif (event == "PLAYER_ENTERING_WORLD") then
   RefreshGUIDs();
+  lastXP, lastXPMax = UnitXP("player"), UnitXPMax("player");
   table_wipe(spellNames); table_wipe(spellIcons); spellCacheSize = 0;
   table_wipe(globalStringInfoArray); globalStringInfoSize = 0;
   MikCEH.ResetThresholdState();
@@ -682,12 +633,17 @@ function MikCEH.OnEvent()
    MikCEH.SendEvent(eventData);
   end
 
- elseif (event == "CHAT_MSG_COMBAT_XP_GAIN") then
-  local capturedData = MikCEH.GetCapturedData(arg1, "COMBATLOG_XPGAIN_FIRSTPERSON", {"%n", "%a"});
-  if (capturedData ~= nil) then
-   local eventData = MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_EXPERIENCE_GAIN, capturedData.Amount, capturedData.Name);
-   MikCEH.SendEvent(eventData);
+ elseif (event == "PLAYER_XP_UPDATE") then
+  local xp, xpMax = UnitXP("player"), UnitXPMax("player");
+  if (lastXP) then
+   local gain = xp - lastXP;
+   -- A level-up starts the bar again: the rest of the old level plus the new.
+   if (gain < 0) then gain = (lastXPMax - lastXP) + xp end;
+   if (gain > 0) then
+    MikCEH.SendEvent(MikCEH.GetNotificationEventData(MikCEH.NOTIFICATIONTYPE_EXPERIENCE_GAIN, gain, nil));
+   end
   end
+  lastXP, lastXPMax = xp, xpMax;
 
  end
 end
@@ -754,7 +710,7 @@ function MikCEH.EraseTable(t)
 end
 
 -------------------------------------------------------------------------------------
--- Chat text capture (honor, skill, XP and search triggers)
+-- Chat text capture (honor and skill: no structured event exists for either)
 -------------------------------------------------------------------------------------
 
 function MikCEH.GetGlobalStringInfo(globalStringName)
@@ -895,20 +851,11 @@ function MikCEH.RegisterTrigger(triggerKey, triggerSettings)
    youParryTriggers[triggerKey] = triggerSettings;
   elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_TARGET_DODGES) then
    targetDodgesTriggers[triggerKey] = triggerSettings;
-  elseif (triggerSettings.TriggerType == MikCEH.TRIGGERTYPE_SEARCH_PATTERN) then
-   for _, name in ipairs(triggerSettings.TriggerEvents or {}) do
-    if not searchTriggers[name] then searchTriggers[name] = {} end
-    searchTriggers[name][triggerKey] = triggerSettings;
-    if searchFrame and not (MikSBT_Save and MikSBT_Save.UserDisabled) then searchFrame:RegisterEvent(name) end
-   end
   end
  end
 end
 
 function MikCEH.UnregisterAllTriggers()
- if searchFrame then searchFrame:UnregisterAllEvents() end;
- table_wipe(searchTriggers);
- if searchFilter then MikCEH.EnableEventSearching(searchFilter) end;
  MikCEH.ResetThresholdState();
  MikCEH.EraseTable(selfHealthTriggers);
  MikCEH.EraseTable(selfManaTriggers);

@@ -983,6 +983,7 @@ function MikSBT.UpdateProfiles()
   MSBT_TRIGGER_NIGHTFALL = {"Shadow Trance", 7},
  };
  local function MigrateTriggers(profile)
+  if type(profile.Triggers) ~= "table" then return end
   for key, old in pairs(CHAT_TRIGGERS) do
    local trigger = type(profile.Triggers) == "table" and profile.Triggers[key];
    local settings = trigger and trigger.TriggerSettings;
@@ -994,6 +995,15 @@ function MikSBT.UpdateProfiles()
      settings.AuraName = (newType == 7) and old[1] or nil;
      settings.TriggerEvents, settings.SearchPatterns = nil, nil;
     end
+   end
+  end
+  -- The Search Pattern type (6) matched chat text and is retired: a default
+  -- trigger still on it goes back to its default, any other is removed.
+  for key, trigger in pairs(profile.Triggers) do
+   local settings = type(trigger) == "table" and trigger.TriggerSettings;
+   if (settings and settings.TriggerType == 6) then
+    local default = MikSBT.DEFAULT_CONFIG.Triggers[key];
+    profile.Triggers[key] = default and MikSBT.CopyTable(default) or nil;
    end
   end
  end
@@ -2192,21 +2202,6 @@ function MikSBT.CommandHandler(params)
  elseif (currentParam == MikSBT.COMMAND_SHOWVER) then
   -- Output the current version number.
   MikSBT.Print(MikSBT.VERSION_STRING, 1,1,1);
-
-  -- Don't show the usage info.
-  showUsage = false;
-
- elseif (currentParam == MikSBT.COMMAND_SEARCH) then
-  -- Check if there is any filter text
-  if (remainingParams and remainingParams ~= "") then
-   -- Turn on event searching mode.
-   MikCEH.EnableEventSearching(remainingParams);
-   MikSBT.Print(MikSBT.MSG_SEARCH_ENABLE .. remainingParams, 1, 1, 1);
-  else
-   -- Turn off event searching mode.
-   MikCEH.DisableEventSearching();
-   MikSBT.Print(MikSBT.MSG_SEARCH_DISABLE, 1, 1, 1);
-  end
 
   -- Don't show the usage info.
   showUsage = false;
