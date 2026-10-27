@@ -1,6 +1,6 @@
 ## X-Maintainer: Fostercare5988
 ## Interface: 11200
-## X-ClassicAPI-Min-Version: 1.17.7
+## X-ClassicAPI-Min-Version: 1.17.11
 ## Dependencies: !!!ClassicAPI
 ## Title: |cffff9e38Mik's Scrolling Battle Text|r |cffffd6a8[Fostercare5988]|r
 ## Notes: Scrolling combat text from ClassicAPI's combat log.

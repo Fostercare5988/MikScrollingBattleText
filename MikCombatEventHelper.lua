@@ -496,8 +496,9 @@ function MikCEH.RegisterEvents()
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED");
   MCEHEventFrame:RegisterEvent("PLAYER_REGEN_DISABLED");
   MCEHEventFrame:RegisterEvent("PLAYER_COMBO_POINTS");
-  MCEHEventFrame:RegisterEvent("UNIT_HEALTH");
-  MCEHEventFrame:RegisterEvent("UNIT_MANA");
+  -- Only the units with triggers; other tokens never reach Lua.
+  MCEHEventFrame:RegisterUnitEvent("UNIT_HEALTH", "player", "pet", "target");
+  MCEHEventFrame:RegisterUnitEvent("UNIT_MANA", "player");
   MCEHEventFrame:RegisterEvent("PLAYER_TARGET_CHANGED");
   MCEHEventFrame:RegisterEvent("UNIT_PET");
   MCEHEventFrame:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
