@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------
--- Title: Mik's Scrolling Battle Text (ClassicAPI 1.17.11+)
+-- Title: Mik's Scrolling Battle Text (ClassicAPI)
 -- Author: Mik, Fostercare5988
 -- Maintainer: Fostercare5988
 -------------------------------------------------------------------------------------

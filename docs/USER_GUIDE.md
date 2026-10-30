@@ -78,5 +78,5 @@ defaults, triggers and filters included. `/msbt reset` does the same.
 BigWigs and other addons can send text through `MikSBT.DisplayMessage`. MSBT
 leaves other addons' floating text and settings alone.
 
-Requirements: ClassicAPI 1.17.11+. SuperWoW, NamPower and UnitXP are not needed.
+Requirements: ClassicAPI. SuperWoW, NamPower and UnitXP are not needed.
 DLL updates need a full client restart.
