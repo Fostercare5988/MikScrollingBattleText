@@ -945,3 +945,22 @@ function MikSBTOpt.ShowTab(index)
  panel:Show()
  ShowTab(index)
 end
+
+ -- Game Menu > AddOn Options > MikScrollingBattleText (ClassicAPI).
+ local entry = CreateFrame("Frame", "MSBTOptionsEntry")
+ entry.name = "MikScrollingBattleText"
+ local entryTitle = entry:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+ entryTitle:SetPoint("TOPLEFT", entry, "TOPLEFT", 16, -16)
+ entryTitle:SetText("MikScrollingBattleText")
+ local entryText = entry:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+ entryText:SetPoint("TOPLEFT", entryTitle, "BOTTOMLEFT", 0, -8)
+ entryText:SetWidth(380)
+ entryText:SetJustifyH("LEFT")
+ entryText:SetText("Scrolling combat text. Type /msbt to open the settings at any time.")
+ local entryOpen = UI.Button("MSBTOptionsEntryOpen", entry, "Open settings", 16, -80, 172, function()
+     if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then InterfaceOptionsFrame:Hide() end
+     if GameMenuFrame and GameMenuFrame:IsShown() then HideUIPanel(GameMenuFrame) end
+     MikSBTOpt.ShowTab(1)
+ end)
+ UI.Select(entryOpen, true)
+ InterfaceOptions_AddCategory(entry)
